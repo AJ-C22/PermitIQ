@@ -6,6 +6,7 @@ import pandas as pd
 import plotly.express as px
 
 st.set_page_config(page_title="PermitIQ - Dashboard", layout="wide")
+base="light"
 
 hide_decoration_bar_style = '''
     <style>
@@ -14,8 +15,16 @@ hide_decoration_bar_style = '''
 '''
 st.markdown(hide_decoration_bar_style, unsafe_allow_html=True)
 
-PRIMARY_BLUE = "#1E90FF"
-SECONDARY_GREEN = "#32CD32"
+PRIMARY_BLUE = "#17A9CE"
+SECONDARY_GREEN = "#6BC856"
+colors = [
+    "#17A9CE",  # PRIMARY_BLUE
+    "#6BC856",  # SECONDARY_GREEN
+    "#75D0E6",  # PALE_BLUE
+    "#3A8BB3",  # MID_BLUE
+    "#7FCA7F",  # PALE_GREEN
+    "#2C8D32"   # FOREST_GREEN
+]
 
 col1, col2 = st.columns([0.8, 0.2])
 
@@ -98,10 +107,15 @@ if view == "Home":
         x="department",
         y="count",
         color="department",
-        color_discrete_sequence=[PRIMARY_BLUE, SECONDARY_GREEN]*3,
+        color_discrete_sequence=colors,
         title="Documents per Department"
     )
     st.plotly_chart(fig, use_container_width=True)
+
+    fig.update_layout(
+    xaxis=dict(fixedrange=True),
+    yaxis=dict(fixedrange=True)
+    )
 
     selected_dept = st.selectbox("🔍 Filter documents by department", ["All"] + departments)
 
@@ -113,9 +127,10 @@ if view == "Home":
     st.subheader("📋 Filtered Documents")
     st.dataframe(filtered_docs[["department", "filename", "received", "status"]], use_container_width=True)
 
-    if selected_dept != "All":
-        if st.button(f"➡️ Go to {selected_dept} Department View"):
-            st.session_state["view_override"] = selected_dept
+    # if selected_dept != "All":
+    #     if st.button(f"➡️ Go to {selected_dept} Department View"):
+    #         st.session_state.view = selected_dept
+    #         st.experimental_rerun()
 
 
 # --- Department View ---
