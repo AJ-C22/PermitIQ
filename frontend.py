@@ -18,12 +18,12 @@ st.markdown(hide_decoration_bar_style, unsafe_allow_html=True)
 PRIMARY_BLUE = "#17A9CE"
 SECONDARY_GREEN = "#6BC856"
 colors = [
-    "#17A9CE",  # PRIMARY_BLUE
-    "#6BC856",  # SECONDARY_GREEN
-    "#75D0E6",  # PALE_BLUE
-    "#3A8BB3",  # MID_BLUE
-    "#7FCA7F",  # PALE_GREEN
-    "#2C8D32"   # FOREST_GREEN
+    "#17A9CE",  
+    "#6BC856",  
+    "#75D0E6",  
+    "#3A8BB3", 
+    "#7FCA7F", 
+    "#2C8D32"   
 ]
 
 col1, col2 = st.columns([0.8, 0.2])
