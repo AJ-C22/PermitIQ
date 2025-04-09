@@ -1,49 +1,59 @@
 import pandas as pd
 import re
 
-import nltk
-from nltk.corpus import stopwords
-from nltk.stem import WordNetLemmatizer
-nltk.download('stopwords') 
-nltk.download('wordnet')   
+# Define chunk size (adjust based on your memory capacity)
+chunk_size = 50000  # Process 50,000 rows at a time
+input_file = "permit_data.csv"
+output_file = "permit_data_cleaned.csv"
 
-df = pd.read_csv("permit_data.csv", nrows=100000)
+# --- Define the cleaning function ---
+def clean_chunk(df_chunk):
+    """Applies cleaning steps to a DataFrame chunk."""
+    # Keep only necessary columns
+    df_chunk = df_chunk[["PMPERMITID", "PERMITTYPE", "DESCRIPTION"]].copy()
 
-print("Original Columns:", df.columns)
+    # --- Basic Cleaning ---
+    df_chunk['DESCRIPTION'] = df_chunk['DESCRIPTION'].fillna('')
+    df_chunk['DESCRIPTION'] = df_chunk['DESCRIPTION'].str.replace('"', '')
+    df_chunk['DESCRIPTION'] = df_chunk['DESCRIPTION'].str.lower()
+    df_chunk['DESCRIPTION'] = df_chunk['DESCRIPTION'].str.split('===', n=1, expand=True)[0]
+    df_chunk['DESCRIPTION'] = df_chunk['DESCRIPTION'].str.strip()
 
-df = df[["PMPERMITID", "PERMITTYPE", "DESCRIPTION"]].copy() # Use .copy() to avoid SettingWithCopyWarning
+    # --- Further Cleaning for Classification ---
+    df_chunk['DESCRIPTION'] = df_chunk['DESCRIPTION'].str.replace(r'[^\w\s]', '', regex=True)
+    df_chunk['DESCRIPTION'] = df_chunk['DESCRIPTION'].str.replace(r'\d+', '', regex=True)
+    df_chunk['DESCRIPTION'] = df_chunk['DESCRIPTION'].str.replace(r'\s+', ' ', regex=True).str.strip()
 
-df['DESCRIPTION'] = df['DESCRIPTION'].fillna('')
-df['DESCRIPTION'] = df['DESCRIPTION'].str.replace('"', '')
-df['DESCRIPTION'] = df['DESCRIPTION'].str.lower()
-df['DESCRIPTION'] = df['DESCRIPTION'].str.split('===', n=1, expand=True)[0]
-df['DESCRIPTION'] = df['DESCRIPTION'].str.strip()
+    # --- Advanced Cleaning (Requires NLTK/spaCy) ---
+    # def clean_text_advanced(text):
+    #     words = text.split()
+    #     words = [lemmatizer.lemmatize(word) for word in words if word not in stop_words]
+    #     return ' '.join(words)
+    # df_chunk['DESCRIPTION'] = df_chunk['DESCRIPTION'].apply(clean_text_advanced)
 
-# --- Further Cleaning for Classification ---
-df['DESCRIPTION'] = df['DESCRIPTION'].str.replace(r'[^\w\s]', '', regex=True)
-df['DESCRIPTION'] = df['DESCRIPTION'].str.replace(r'\d+', '', regex=True)
-df['DESCRIPTION'] = df['DESCRIPTION'].str.replace(r'\s+', ' ', regex=True).str.strip()
+    # Ensure PMPERMITID is string
+    df_chunk['PMPERMITID'] = df_chunk['PMPERMITID'].astype(str)
 
+    return df_chunk
 
-# --- Advanced Cleaning (Requires NLTK/spaCy) ---
-# Example using NLTK (uncomment and adapt if needed)
-# stop_words = set(stopwords.words('english'))
-# lemmatizer = WordNetLemmatizer()
-#
-# def clean_text_advanced(text):
-#     words = text.split()
-#     words = [lemmatizer.lemmatize(word) for word in words if word not in stop_words]
-#     return ' '.join(words)
-#
-# df['DESCRIPTION'] = df['DESCRIPTION'].apply(clean_text_advanced)
+# --- Process the file in chunks ---
+print(f"Starting processing of {input_file} in chunks of {chunk_size}...")
 
+first_chunk = True
+# Create a TextFileReader object
+reader = pd.read_csv(input_file, chunksize=chunk_size, iterator=True)
 
-print("Cleaned Columns:", df.columns) # Should still be the same columns
+for i, chunk in enumerate(reader):
+    print(f"Processing chunk {i+1}...")
+    cleaned_chunk = clean_chunk(chunk)
 
-# Ensure PMPERMITID is string if it's an identifier not used numerically
-df['PMPERMITID'] = df['PMPERMITID'].astype(str)
+    if first_chunk:
+        # For the first chunk, write with header
+        cleaned_chunk.to_csv(output_file, index=False, mode='w', header=True)
+        first_chunk = False
+        print("Columns in cleaned data:", cleaned_chunk.columns.tolist()) # Print columns once
+    else:
+        # For subsequent chunks, append without header
+        cleaned_chunk.to_csv(output_file, index=False, mode='a', header=False)
 
-df.to_csv("permit_data_cleaned.csv", index=False)
-
-print("Sample cleaned descriptions:")
-print(df['DESCRIPTION'].head())
+print(f"Finished processing. Cleaned data saved to {output_file}")
