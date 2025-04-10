@@ -11,13 +11,11 @@ nltk.download('wordnet')
 
 # --- Function to disable SSL verification for NLTK download (Reuse from previous versions) ---
 def download_nltk_resource_no_ssl(resource_id, resource_name):
-    # (Keep the function definition from previous versions - includes try/except for context and finally block)
     try:
         _create_unverified_https_context = ssl._create_unverified_context
     except AttributeError:
         pass
     else:
-        # Temporarily set the unverified context for NLTK download
         ssl._create_default_https_context = _create_unverified_https_context
 
     print(f"Attempting to download NLTK resource: {resource_name} (SSL verification disabled)")
@@ -35,13 +33,11 @@ def download_nltk_resource_no_ssl(resource_id, resource_name):
         print(f"Error during/after NLTK resource download {resource_name}: {e}")
         print("Skipping advanced cleaning steps that require this resource.")
     finally:
-        # Restore original SSL context setting IMPORTANT
         ssl._create_default_https_context = ssl.create_default_context
     return download_successful
 
 
 # --- Initialize NLTK components (Reuse robust initialization from previous versions) ---
-# (This section attempts to load stopwords/wordnet and downloads if needed using the SSL fix)
 print("Initializing NLTK resources...")
 stop_words = None
 lemmatizer = None
@@ -83,24 +79,22 @@ else:
      print("Skipping further NLTK initialization checks as stopwords failed.")
 
 
-# --- Start of your existing code (modified slightly) ---
-df = pd.read_csv("permit_data.csv", nrows=100000) # Keep nrows for now
+# --- General Cleaning ---
+df = pd.read_csv("permit_data.csv", nrows=100000) 
 
 print("Original Columns:", df.columns)
 
-df = df[["PERMITTYPE", "DESCRIPTION"]].copy() # Use .copy() to avoid SettingWithCopyWarning
+df = df[["PERMITTYPE", "DESCRIPTION"]].copy() 
 
 # --- Basic Cleaning ---
-df['PERMITTYPE'] = df['PERMITTYPE'].fillna('').astype(str).str.strip().str.lower() # Clean PERMITTYPE
+df['PERMITTYPE'] = df['PERMITTYPE'].fillna('').astype(str).str.strip().str.lower()
 df['DESCRIPTION'] = df['DESCRIPTION'].fillna('')
 df['DESCRIPTION'] = df['DESCRIPTION'].str.replace('"', '')
 df['DESCRIPTION'] = df['DESCRIPTION'].str.lower()
-# Handle potential None after split
 df['DESCRIPTION'] = df['DESCRIPTION'].str.split('===', n=1, expand=True)[0].fillna('')
 df['DESCRIPTION'] = df['DESCRIPTION'].str.strip()
 
 # --- Extract "PURPOSE:" text (Reuse safer version) ---
-# (This block should be here, before regex cleaning removes colons)
 print("Attempting to extract text after 'purpose [optional spaces]:[optional spaces]' where found...")
 purpose_regex = r'purpose\s*:\s*'
 contains_purpose = df['DESCRIPTION'].str.contains(purpose_regex, na=False, regex=True)
@@ -121,47 +115,51 @@ else:
 
 # --- Further Cleaning (Regex, Specific Strings, Colon Removal) ---
 print("Applying further cleaning (punctuation, numbers, specific strings)...")
-# Remove all non-word/space chars (including colons now)
 df['DESCRIPTION'] = df['DESCRIPTION'].str.replace(r'[^\w\s]', '', regex=True).fillna('')
-# Remove numbers
 df['DESCRIPTION'] = df['DESCRIPTION'].str.replace(r'\d+', '', regex=True).fillna('')
-# Remove specific unwanted strings
 df['DESCRIPTION'] = df['DESCRIPTION'].str.replace("cutapplicationid", '', regex=False)
 df['DESCRIPTION'] = df['DESCRIPTION'].str.replace("cpuc compliance", '', regex=False)
-# Consolidate whitespace and strip
 df['DESCRIPTION'] = df['DESCRIPTION'].str.replace(r'\s+', ' ', regex=True).str.strip()
+df['DESCRIPTION'] = df['DESCRIPTION'].str.replace(" x ", '', regex=False)
+df['DESCRIPTION'] = df['DESCRIPTION'].str.replace(" e ", '', regex=False)
+df['DESCRIPTION'] = df['DESCRIPTION'].str.replace(" n ", '', regex=False)
+df['DESCRIPTION'] = df['DESCRIPTION'].str.replace(" f ", '', regex=False)
+df['DESCRIPTION'] = df['DESCRIPTION'].str.replace(" kw ", '', regex=False)
+df['DESCRIPTION'] = df['DESCRIPTION'].str.replace(" nd ", '', regex=False)
+df['DESCRIPTION'] = df['DESCRIPTION'].str.replace(" pv ", '', regex=False)
+df['DESCRIPTION'] = df['DESCRIPTION'].str.replace(" b ", '', regex=False)
+df['DESCRIPTION'] = df['DESCRIPTION'].str.replace(" s ", '', regex=False)
+df['DESCRIPTION'] = df['DESCRIPTION'].str.replace(" mh ", '', regex=False)
+df['DESCRIPTION'] = df['DESCRIPTION'].str.replace(" hm ", '', regex=False)
+df['DESCRIPTION'] = df['DESCRIPTION'].str.replace(" h ", '', regex=False)
+df['DESCRIPTION'] = df['DESCRIPTION'].str.replace(" ti ", '', regex=False)
+df['DESCRIPTION'] = df['DESCRIPTION'].str.replace(" tc ", '', regex=False)
+df['DESCRIPTION'] = df['DESCRIPTION'].str.replace(" k ", '', regex=False)
+
 
 # --- Filter 1: Remove rows with blank PERMITTYPE or DESCRIPTION ---
 print(f"Rows before filtering blanks: {len(df)}")
 rows_to_keep_initial = (df['PERMITTYPE'] != '') & (df['DESCRIPTION'] != '')
-# Use .copy() here to prepare for NLTK step if you modify df later
 df = df[rows_to_keep_initial].copy()
 print(f"Rows after filtering blanks: {len(df)}")
 
 # --- [NEW STEP] Advanced Cleaning (NLTK Stopwords and Lemmatization) ---
-if nltk_resources_available and not df.empty: # Check flag and if df is not empty
+if nltk_resources_available and not df.empty: 
     print("Applying NLTK cleaning (stopwords, lemmatization)...")
 
-    # Define the cleaning function (ensure lemmatizer/stopwords are checked)
     def clean_text_advanced(text):
         if pd.isna(text) or not isinstance(text, str) or not text.strip():
              return ''
-        # Use the globally initialized variables
-        global lemmatizer, stop_words # Refer to the variables loaded earlier
+        global lemmatizer, stop_words 
         if lemmatizer is None or stop_words is None:
-            # This case should ideally be handled by the nltk_resources_available flag,
-            # but this is an extra safety check.
-            return text # Return text unmodified if resources aren't ready
+            return text 
         try:
             words = text.split()
-            # Lemmatize words that are not stopwords
             words = [lemmatizer.lemmatize(word) for word in words if word not in stop_words]
             return ' '.join(words)
         except Exception as e:
-            # print(f"Error processing text '{text[:50]}...': {e}") # Optional debug
-            return '' # Return empty on error during apply
+            return '' #
 
-    # Apply the function to the DESCRIPTION column
     df['DESCRIPTION'] = df['DESCRIPTION'].apply(clean_text_advanced)
     print("Finished NLTK cleaning.")
 elif df.empty:
@@ -172,13 +170,5 @@ else:
 
 # --- Final Output ---
 print("Saving cleaned data...")
-try:
-    if not df.empty:
-        df.to_csv("permit_data_cleaned.csv", index=False)
-        print(f"Cleaned data saved to permit_data_cleaned.csv")
-        print("\nSample of final cleaned data:")
-        print(df.head())
-    else:
-        print("Cleaned DataFrame is empty. No file saved.")
-except Exception as e:
-    print(f"Error saving file '{OUTPUT_FILE}': {e}")
+df.to_csv("permit_data_cleaned.csv", index=False)
+
