@@ -185,23 +185,19 @@ if st.session_state.view == "form":
             try:
                 gemini_model = genai.GenerativeModel("gemini-2.0-flash-thinking-exp-01-21")
                 response = gemini_model.generate_content(prompt)
-
-                # --- Store the response text ---
                 st.session_state.ai_response = response.text
 
             except Exception as e:
                 st.error(f"🤕 Sorry, couldn't get an answer from the AI: {e}")
-                st.session_state.ai_response = None # Ensure response is None on error
+                st.session_state.ai_response = None 
 
-    # Display AI response if available
     if st.session_state.ai_response:
         st.markdown("**EthicaAI Response:**")
-        # Use an expander for potentially long responses
         with st.expander("View AI Response", expanded=True):
-            st.markdown(st.session_state.ai_response) # Display the actual response
+            st.markdown(st.session_state.ai_response) 
 
     st.caption("Ethica AI can provide answers about general procedures or specific permit data if available.")
-    st.divider() # Separator before the form
+    st.divider() 
 
     st.title("📝 Submit a Permit Request")
     st.markdown("Fill in the details below to submit your permit application.")
@@ -232,18 +228,15 @@ if st.session_state.view == "form":
         description = st.text_area("Detailed Project Description*", height=150, key="description", placeholder="Describe the scope of work...")
         submission_date = datetime.today()
 
-        # Form submit button
         submitted = st.form_submit_button("➡️ Submit Permit Request", use_container_width=True, type="primary")
 
         # --- Form Submission Logic ---
         if submitted:
-            form_submitted_this_run = True # Set the flag
-            # Validation
+            form_submitted_this_run = True 
             if not all([applicant_name, project_name, email, project_location, description]):
                 st.error("⚠️ Please fill in all required fields marked with *.")
-                form_submitted_this_run = False # Reset flag if validation fails
+                form_submitted_this_run = False 
             else:
-                # Use st.status for processing feedback
                 with st.status("Processing submission...", expanded=True) as status:
                     st.write("⏳ Validating input...")
                     time.sleep(0.5)
@@ -294,25 +287,21 @@ if st.session_state.view == "form":
 
     # --- Display Success Message outside the form ---
     if form_submitted_this_run:
-         # This message appears *after* the form block if submission was successful in this run
          st.success(f"✅ Permit request '{st.session_state.requests[-1]['Project Name']}' submitted successfully! Assigned to {st.session_state.requests[-1]['Assigned To']}.")
          st.balloons()
-         # We don't need to clear form here because clear_on_submit=True handles it.
+        
 
 # ========== DASHBOARD PAGE ==========
-# Ensure this elif is OUTSIDE the "form" block
 elif st.session_state.view == "dashboard":
     st.title("📊 Internal Dashboard")
     st.markdown("Track, manage, and review submitted permit requests.")
 
-    # Check if there are requests AFTER potentially adding one in the form view run
     if not st.session_state.requests:
         st.info("📪 No permit requests submitted yet.")
     else:
         # --- Dashboard content (KPIs, Filtering, Table, Details) ---
-        try: # Wrap dashboard logic in try/except for better error isolation
+        try: 
             df = pd.DataFrame(st.session_state.requests)
-            # Convert dates safely, coercing errors
             df['Submission Date'] = pd.to_datetime(df['Submission Date'], errors='coerce')
             df['Last Update DT'] = pd.to_datetime(df['Last Update'], errors='coerce')
 
@@ -320,7 +309,7 @@ elif st.session_state.view == "dashboard":
             st.subheader("📈 KPIs & Overview")
             kp1, kp2, kp3, kp4 = st.columns(4)
             kp1.metric("Total Requests", len(df))
-            # Calculate average time safely
+
             valid_times = df.dropna(subset=['Submission Date', 'Last Update DT'])
             avg_time = (valid_times['Last Update DT'] - valid_times['Submission Date']).mean() if not valid_times.empty else None
             kp2.metric("Avg. Time (Days)", f"{avg_time.days + avg_time.seconds/86400:.1f}" if pd.notna(avg_time) else "N/A")
@@ -338,7 +327,7 @@ elif st.session_state.view == "dashboard":
             with filter2:
                 reviewer_filter = st.multiselect("Filter by Assignee", options=['Unassigned'] + REVIEWERS, default=['Unassigned'] + REVIEWERS)
             with filter3:
-                date_filter = st.date_input("Filter by Submission Date (Range)", value=(), key="date_filter") # Empty tuple for range
+                date_filter = st.date_input("Filter by Submission Date (Range)", value=(), key="date_filter") 
 
             # Apply filters
             filtered_df = df.copy()
@@ -346,7 +335,7 @@ elif st.session_state.view == "dashboard":
                 filtered_df = filtered_df[filtered_df['Status'].isin(status_filter)]
             if reviewer_filter:
                 filtered_df = filtered_df[filtered_df['Assigned To'].isin(reviewer_filter)]
-            if len(date_filter) == 2 and filtered_df['Submission Date'].notna().all(): # Check for NaT after conversion
+            if len(date_filter) == 2 and filtered_df['Submission Date'].notna().all(): 
                  filtered_df = filtered_df[(filtered_df['Submission Date'].dt.date >= date_filter[0]) & (filtered_df['Submission Date'].dt.date <= date_filter[1])]
 
             # --- Permit Request Table ---
@@ -354,11 +343,10 @@ elif st.session_state.view == "dashboard":
             if filtered_df.empty and not df.empty:
                  st.warning("No requests match the current filters.")
             elif filtered_df.empty and df.empty:
-                 st.info("No requests available.") # Should be caught earlier, but safe check
+                 st.info("No requests available.") 
             else:
                  st.info(f"Displaying {len(filtered_df)} of {len(df)} total requests.")
                  display_cols = ["ID", "Project Name", "Applicant", "Permit Type", "Status", "Assigned To", "Submission Date", "Last Update"]
-                 # Format Submission Date for display if needed
                  filtered_df_display = filtered_df.copy()
                  filtered_df_display['Submission Date'] = filtered_df_display['Submission Date'].dt.strftime('%Y-%m-%d')
                  st.dataframe(filtered_df_display[display_cols], use_container_width=True, hide_index=True)
@@ -367,7 +355,6 @@ elif st.session_state.view == "dashboard":
                  st.subheader("⚙️ Manage Selected Request")
                  request_ids = filtered_df['ID'].tolist()
                  selected_id = st.selectbox("Select Request ID to Manage", options=request_ids)
-                 # Find original index safely
                  selected_indices = df.index[df['ID'] == selected_id].tolist()
 
                  if selected_indices:
@@ -410,7 +397,7 @@ elif st.session_state.view == "dashboard":
                                       st.session_state.requests[selected_idx]['Last Update'] = now_str
                                       st.session_state.requests[selected_idx]['Review History'].extend(update_log)
                                       st.success("Request updated!")
-                                      st.rerun() # Rerun to reflect changes
+                                      st.rerun() 
                                  else:
                                       st.info("No changes detected.")
 
@@ -423,7 +410,7 @@ elif st.session_state.view == "dashboard":
                                       st.session_state.requests[selected_idx]['Last Update'] = datetime.now().strftime("%Y-%m-%d %H:%M")
                                       st.session_state.requests[selected_idx]['Review History'].append(f"{datetime.now().strftime('%Y-%m-%d %H:%M')}: Sent for External Review.")
                                       st.success("Sent for external review.")
-                                      st.rerun() # Corrected indentation
+                                      st.rerun()
                              with sim2:
                                   if st.button("🚩 Trigger Interdept. Review", key=f"interdept_{selected_id}"):
                                        needed = st.session_state.requests[selected_idx]['Needs Review By']
@@ -455,7 +442,6 @@ elif st.session_state.view == "dashboard":
                  rep1, rep2 = st.columns(2)
                  with rep1:
                      st.write("**Status Distribution**")
-                     # Use original df for overall counts
                      status_counts = pd.DataFrame(st.session_state.requests)['Status'].value_counts()
                      st.bar_chart(status_counts)
                  with rep2:
@@ -465,5 +451,5 @@ elif st.session_state.view == "dashboard":
 
         except Exception as e:
              st.error(f"An error occurred while rendering the dashboard: {e}")
-             st.exception(e) # Show traceback for debugging
+             st.exception(e) 
                         
