@@ -7,7 +7,7 @@ import random # For routing simulation
 import time
 
 # --- Page Configuration ---
-st.set_page_config(layout="wide", page_title="Permit Processing System", page_icon="🏗️")
+st.set_page_config(layout="wide", page_title="PermitIQ", page_icon="logo.png")
 
 # --- Load Classifier Model ---
 MODEL_PATH = "permit_classifier_pipeline.joblib"
@@ -21,6 +21,8 @@ else:
     model = None
 
 # --- Mock Data / Configuration ---
+PRIMARY_BLUE = "#17A9CE"
+SECONDARY_GREEN = "#6BC856"
 REVIEWERS = ["Alice", "Bob", "Charlie", "Diana"]
 DEPARTMENTS_NEEDING_REVIEW = {
     "Building Permit": ["Fire", "Public Works"],
@@ -75,11 +77,17 @@ with logo_col2: # Place the image in the middle column
     try:
         st.image("logo.png", width=240) # Use st.image within the column context
     except Exception as e:
-        # If using st.image, the error might display in the column.
-        # If you prefer the warning in the sidebar directly:
-        # st.sidebar.warning(f"Could not load logo.png: {e}")
+        st.sidebar.warning(f"Could not load logo.png: {e}")
         st.error(f"Logo not found: {e}")
-st.sidebar.title("🏗️ Permit System")
+st.sidebar.markdown(
+        f"""
+        <h1 style='font-size: 2.4em;'>
+            <span style='color:{PRIMARY_BLUE};'>Permit</span>
+            <span style='color:{SECONDARY_GREEN};'>IQ</span> 
+        </h1>
+        """,
+        unsafe_allow_html=True
+    )
 
 st.sidebar.divider()
 selected_view = st.sidebar.radio(
@@ -269,8 +277,6 @@ elif st.session_state.view == "dashboard":
                      selected_data = st.session_state.requests[selected_idx]
 
                      with st.expander("View/Edit Details", expanded=True):
-                         # (Keep the expander content: detail columns, update buttons, simulate actions, history, docs)
-                         # ... (rest of the detailed view logic from previous version) ...
                          detail1, detail2 = st.columns(2)
                          with detail1:
                              st.write(f"**Project:** {selected_data['Project Name']}")
