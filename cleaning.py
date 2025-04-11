@@ -80,7 +80,7 @@ else:
 
 
 # --- General Cleaning ---
-df = pd.read_csv("permit_data.csv", nrows=100000) 
+df = pd.read_csv("permit_data.csv") 
 
 print("Original Columns:", df.columns)
 
