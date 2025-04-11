@@ -2,12 +2,27 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
 import joblib
+from dotenv import load_dotenv
 import os
-import random # For routing simulation
+import google.generativeai as genai
+import random 
 import time
 
 # --- Page Configuration ---
 st.set_page_config(layout="wide", page_title="PermitIQ", page_icon="logo.png")
+
+# --- Load Environment Variables & Configure Gemini ---
+load_dotenv()
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+gemini_configured = False
+if GEMINI_API_KEY:
+    try:
+        genai.configure(api_key=GEMINI_API_KEY)
+        gemini_configured = True
+    except Exception as e:
+        st.sidebar.error(f"⚠️ Failed to configure Gemini: {e}")
+else:
+    st.sidebar.error("⚠️ GEMINI_API_KEY not found in environment variables.")
 
 # --- Load Classifier Model ---
 MODEL_PATH = "permit_classifier_pipeline.joblib"
@@ -28,18 +43,63 @@ DEPARTMENTS_NEEDING_REVIEW = {
     "Building Permit": ["Fire", "Public Works"],
     "ADU Conversion": ["Regional Planning", "Public Works"],
     "Site Plan Review": ["Regional Planning"],
-    # Add other rules as needed
 }
 PERMIT_STATUS_OPTIONS = ["Submitted", "In Review", "Needs Info", "Approved", "Rejected", "Withdrawn", "External Review"]
 
-# --- Session State Initialization ---
-if "requests" not in st.session_state:
-    st.session_state.requests = [] # List to store permit request dictionaries
-if "reviewer_idx" not in st.session_state:
-    st.session_state.reviewer_idx = 0 # For round-robin assignment
-if "view" not in st.session_state:
-    st.session_state.view = "form" # Default view
+MOCK_PERMIT_DATA = [
+    {
+        "ID": f"P{random.randint(10000, 99999)}", "Project Name": "Downtown Cafe Renovation", "Applicant": "Jane Doe",
+        "Email": "jane.d@example.com", "Location": "456 Central Ave", "Department": "Building & Safety", "Permit Type": "Tenant Improvement",
+        "Description": "Interior renovation for new cafe layout, including new partition walls and finishes.", "Submission Date": (datetime.now() - timedelta(days=10)).strftime("%Y-%m-%d"), "Status": "In Review",
+        "Assigned To": "Alice", "Last Update": (datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d %H:%M"),
+        "Needs Review By": [],
+        "Review History": [f"{(datetime.now() - timedelta(days=10)).strftime('%Y-%m-%d %H:%M')}: Submitted, assigned to Alice.", f"{(datetime.now() - timedelta(days=8)).strftime('%Y-%m-%d %H:%M')}: Initial review started."],
+        "External Review Status": "N/A"
+    },
+    {
+        "ID": f"P{random.randint(10000, 99999)}", "Project Name": "Smith Residence ADU", "Applicant": "John Smith",
+        "Email": "j.smith@sample.net", "Location": "789 Suburb Ln", "Department": "Regional Planning", "Permit Type": "ADU Conversion",
+        "Description": "Convert existing garage into accessory dwelling unit (ADU). Adding plumbing and electrical.", "Submission Date": (datetime.now() - timedelta(days=5)).strftime("%Y-%m-%d"), "Status": "Submitted",
+        "Assigned To": "Bob", "Last Update": (datetime.now() - timedelta(days=5)).strftime("%Y-%m-%d %H:%M"),
+        "Needs Review By": DEPARTMENTS_NEEDING_REVIEW.get("ADU Conversion", []),
+        "Review History": [f"{(datetime.now() - timedelta(days=5)).strftime('%Y-%m-%d %H:%M')}: Submitted, assigned to Bob."],
+        "External Review Status": "N/A"
+    },
+    {
+        "ID": f"P{random.randint(10000, 99999)}", "Project Name": "Oak Street Road Repair", "Applicant": "City Public Works",
+        "Email": "pw@city.gov", "Location": "Oak Street between 1st and 3rd", "Department": "Public Works", "Permit Type": "road",
+        "Description": "Asphalt repair and resurfacing for Oak Street section.", "Submission Date": (datetime.now() - timedelta(days=20)).strftime("%Y-%m-%d"), "Status": "Approved",
+        "Assigned To": "Charlie", "Last Update": (datetime.now() - timedelta(days=3)).strftime("%Y-%m-%d %H:%M"),
+        "Needs Review By": DEPARTMENTS_NEEDING_REVIEW.get("road", []),
+        "Review History": [f"{(datetime.now() - timedelta(days=20)).strftime('%Y-%m-%d %H:%M')}: Submitted, assigned to Charlie.", f"{(datetime.now() - timedelta(days=15)).strftime('%Y-%m-%d %H:%M')}: Review Complete.", f"{(datetime.now() - timedelta(days=3)).strftime('%Y-%m-%d %H:%M')}: Approved."],
+        "External Review Status": "N/A"
+    },
+        {
+        "ID": f"P{random.randint(10000, 99999)}", "Project Name": "Hillside Electrical Upgrade", "Applicant": "Elec Co.",
+        "Email": "contact@elecco.com", "Location": "Rural Route 5", "Department": "Building & Safety", "Permit Type": "unincorporated electrical",
+        "Description": "Upgrade main electrical panel and service line for residence in unincorporated area.", "Submission Date": (datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d"), "Status": "Submitted",
+        "Assigned To": "Diana", "Last Update": (datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d %H:%M"),
+        "Needs Review By": DEPARTMENTS_NEEDING_REVIEW.get("unincorporated electrical", []),
+        "Review History": [f"{(datetime.now() - timedelta(days=2)).strftime('%Y-%m-%d %H:%M')}: Submitted, assigned to Diana."],
+        "External Review Status": "N/A"
+    }
+]
 
+# --- Session State Initialization ---
+if "requests" not in st.session_state or not st.session_state.requests: 
+    st.session_state.requests = MOCK_PERMIT_DATA.copy() 
+if "reviewer_idx" not in st.session_state:
+    st.session_state.reviewer_idx = 0
+if "view" not in st.session_state:
+    st.session_state.view = "form"
+if "ai_question" not in st.session_state:
+    st.session_state.ai_question = ""
+if "ai_response" not in st.session_state:
+    st.session_state.ai_response = None
+
+# Define Logo Colors
+LOGO_BLUE = "#17A9CE"
+LOGO_GREEN = "#6BC856"
 
 # --- Helper Functions ---
 def get_next_reviewer():
@@ -71,25 +131,25 @@ def generate_mock_issuance_doc(permit_data):
     """
 
 # --- Navigation Sidebar ---
-logo_col1, logo_col2, logo_col3 = st.sidebar.columns([1, 4, 1]) # Example: Center column is 4x wider than side columns
-
-with logo_col2: # Place the image in the middle column
+logo_col1, logo_col2, logo_col3 = st.sidebar.columns([1, 4, 1])
+with logo_col2:
     try:
-        st.image("logo.png", width=240) # Use st.image within the column context
+        st.image("logo.png", width=240)
     except Exception as e:
-        st.sidebar.warning(f"Could not load logo.png: {e}")
         st.error(f"Logo not found: {e}")
-st.sidebar.markdown(
+
+title_col1, title_col2, title_col3 = st.sidebar.columns([1, 4, 1])
+with title_col2:
+    st.markdown(
         f"""
-        <h1 style='font-size: 2.4em;'>
-            <span style='color:{PRIMARY_BLUE};'>Permit</span>
-            <span style='color:{SECONDARY_GREEN};'>IQ</span> 
+        <h1 style='text-align: center; font-size: 2.4em; margin-bottom: 0px; margin-top: 0px;'>
+            <span style='color:{LOGO_BLUE};'>PERMIT</span><span style='color:{LOGO_GREEN};'>IQ</span>
         </h1>
         """,
         unsafe_allow_html=True
     )
+st.sidebar.divider() 
 
-st.sidebar.divider()
 selected_view = st.sidebar.radio(
     "Navigation",
     ["📝 Submit New Request", "📊 Internal Dashboard"],
@@ -100,11 +160,49 @@ st.session_state.view = "form" if selected_view == "📝 Submit New Request" els
 st.sidebar.divider()
 st.sidebar.info(f"👷 Mock Reviewers: {', '.join(REVIEWERS)}")
 
-# This flag will be set to True if the form was submitted in this run
 form_submitted_this_run = False
 
 # ========== FORM PAGE ==========
+
+
 if st.session_state.view == "form":
+
+    st.subheader("✨ Ask Ethica AI about Procedures or Data")
+    query_col, btn_col = st.columns([20, 1])
+
+    with query_col:
+        ai_question_input = st.text_input("Ask a question...", key="ai_input", placeholder="e.g., What are the requirements for an ADU conversion?", label_visibility="collapsed")
+    with btn_col:
+        # Disable button if Gemini isn't configured
+        ai_submit_button = st.button("➡️", key="ai_submit", use_container_width=True, disabled=not gemini_configured)
+
+    if ai_submit_button and ai_question_input:
+        st.session_state.ai_question = ai_question_input
+        st.session_state.ai_response = None # Reset previous response
+        prompt = st.session_state.ai_question
+
+        with st.spinner("🧠 Ethica AI is thinking..."):
+            try:
+                gemini_model = genai.GenerativeModel("gemini-2.0-flash-thinking-exp-01-21")
+                response = gemini_model.generate_content(prompt)
+
+                # --- Store the response text ---
+                st.session_state.ai_response = response.text
+
+            except Exception as e:
+                st.error(f"🤕 Sorry, couldn't get an answer from the AI: {e}")
+                st.session_state.ai_response = None # Ensure response is None on error
+
+    # Display AI response if available
+    if st.session_state.ai_response:
+        st.markdown("**EthicaAI Response:**")
+        # Use an expander for potentially long responses
+        with st.expander("View AI Response", expanded=True):
+            st.markdown(st.session_state.ai_response) # Display the actual response
+
+    st.caption("Ethica AI can provide answers about general procedures or specific permit data if available.")
+    st.divider() # Separator before the form
+
     st.title("📝 Submit a Permit Request")
     st.markdown("Fill in the details below to submit your permit application.")
 
