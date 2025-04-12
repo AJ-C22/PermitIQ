@@ -1,0 +1,7 @@
+streamlit
+pandas
+joblib
+python-dotenv
+google-generativeai
+scikit-learn
+nltk
