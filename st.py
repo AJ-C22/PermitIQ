@@ -233,15 +233,7 @@ if st.session_state.view == "form":
                 'unincorporated electrical',
                 'unincorporated mechanical',
                 'fire',
-                'unincorporated sewer',
-                "Building Permit",
-                "Electrical Permit",
-                "Mechanical Permit",
-                "Plumbing Permit",
-                "Site Plan Review",
-                "ADU Conversion",
-                "Tenant Improvement",
-                "Other"
+                'unincorporated sewer'
             ], key="user_permit_type")
 
         description = st.text_area("Detailed Project Description*", height=150, key="description", placeholder="Describe the scope of work...")
