@@ -10,3 +10,6 @@ print(short_words.value_counts().head(50))
 print("\nPERMITTYPE value counts:")
 print(df['PERMITTYPE'].value_counts())
 
+df_uncleaned = pd.read_csv('permit_data.csv')
+df_uncleaned = df_uncleaned[["PERMITTYPE", "DESCRIPTION"]].copy() 
+df_uncleaned.to_csv('permit_data_uncleaned.csv', index=False)
