@@ -81,6 +81,9 @@ if 'rejecting_classification_id' not in st.session_state:
 LOGO_BLUE = "#17A9CE"
 LOGO_GREEN = "#6BC856"
 
+# Define the color palette
+CUSTOM_COLORS = ["#1B3F7D", "#2D66A7", "#498ABA", "#6AB1CF", "#8ECAC4", "#B3DBB8"]
+
 # --- Helper Functions ---
 def get_next_reviewer():
     """Simple round-robin assignment."""
@@ -422,12 +425,52 @@ elif st.session_state.view == "dashboard":
                 rep1, rep2 = st.columns(2)
                 with rep1:
                     st.write("**Status Distribution (All)**")
-                    status_counts = df_all['Status'].value_counts()
-                    st.bar_chart(status_counts)
+                    status_counts = df_all['Status'].value_counts().reset_index()
+                    status_counts.columns = ['Status', 'Count'] # Rename columns for Vega-Lite
+                    status_spec = {
+                        "data": {"values": status_counts.to_dict('records')},
+                        "mark": "bar",
+                        "encoding": {
+                            "x": {"field": "Status", "type": "nominal", "axis": {"labelAngle": -45}},
+                            "y": {"field": "Count", "type": "quantitative"},
+                            "color": {
+                                "field": "Status",
+                                "type": "nominal",
+                                "scale": {"range": CUSTOM_COLORS},
+                                "legend": None # Hide legend if categories match x-axis
+                            },
+                            "tooltip": [{"field": "Status"}, {"field": "Count"}]
+                        },
+                         "config": { # Optional: Improve spacing
+                            "view": {"stroke": "transparent"},
+                            "axis": {"domainWidth": 1}
+                         }
+                    }
+                    st.vega_lite_chart(status_spec, use_container_width=True)
                 with rep2:
                     st.write("**Assignments Distribution (All)**")
-                    assignee_counts = df_all['Assigned To'].value_counts()
-                    st.bar_chart(assignee_counts)
+                    assignee_counts = df_all['Assigned To'].value_counts().reset_index()
+                    assignee_counts.columns = ['Assignee', 'Count']
+                    assignee_spec = {
+                        "data": {"values": assignee_counts.to_dict('records')},
+                        "mark": "bar",
+                        "encoding": {
+                            "x": {"field": "Assignee", "type": "nominal", "axis": {"labelAngle": -45}},
+                            "y": {"field": "Count", "type": "quantitative"},
+                            "color": {
+                                "field": "Assignee",
+                                "type": "nominal",
+                                "scale": {"range": CUSTOM_COLORS},
+                                "legend": None
+                            },
+                            "tooltip": [{"field": "Assignee"}, {"field": "Count"}]
+                        },
+                        "config": {
+                            "view": {"stroke": "transparent"},
+                            "axis": {"domainWidth": 1}
+                         }
+                    }
+                    st.vega_lite_chart(assignee_spec, use_container_width=True)
 
             else:
                 selected_dept = st.session_state.dashboard_detail
@@ -619,12 +662,52 @@ elif st.session_state.view == "dashboard":
                     rep1, rep2 = st.columns(2)
                     with rep1:
                         st.write(f"**Status Distribution ({selected_dept})**")
-                        status_counts_dept = df_dept['Status'].value_counts()
-                        st.bar_chart(status_counts_dept)
+                        status_counts_dept = df_dept['Status'].value_counts().reset_index()
+                        status_counts_dept.columns = ['Status', 'Count']
+                        dept_status_spec = {
+                            "data": {"values": status_counts_dept.to_dict('records')},
+                            "mark": "bar",
+                            "encoding": {
+                                "x": {"field": "Status", "type": "nominal", "axis": {"labelAngle": -45}},
+                                "y": {"field": "Count", "type": "quantitative"},
+                                "color": {
+                                    "field": "Status",
+                                    "type": "nominal",
+                                    "scale": {"range": CUSTOM_COLORS},
+                                    "legend": None
+                                },
+                                "tooltip": [{"field": "Status"}, {"field": "Count"}]
+                            },
+                            "config": {
+                                "view": {"stroke": "transparent"},
+                                "axis": {"domainWidth": 1}
+                            }
+                        }
+                        st.vega_lite_chart(dept_status_spec, use_container_width=True)
                     with rep2:
                         st.write(f"**Permit Type Distribution ({selected_dept})**")
-                        type_counts_dept = df_dept['Permit Type'].value_counts() 
-                        st.bar_chart(type_counts_dept)
+                        type_counts_dept = df_dept['Permit Type'].value_counts().reset_index()
+                        type_counts_dept.columns = ['Permit Type', 'Count']
+                        dept_type_spec = {
+                            "data": {"values": type_counts_dept.to_dict('records')},
+                            "mark": "bar",
+                            "encoding": {
+                                "x": {"field": "Permit Type", "type": "nominal", "axis": {"labelAngle": -45}},
+                                "y": {"field": "Count", "type": "quantitative"},
+                                "color": {
+                                    "field": "Permit Type",
+                                    "type": "nominal",
+                                    "scale": {"range": CUSTOM_COLORS},
+                                    "legend": None
+                                },
+                                "tooltip": [{"field": "Permit Type"}, {"field": "Count"}]
+                            },
+                            "config": {
+                                "view": {"stroke": "transparent"},
+                                "axis": {"domainWidth": 1}
+                            }
+                        }
+                        st.vega_lite_chart(dept_type_spec, use_container_width=True)
             
 
         except Exception as e:

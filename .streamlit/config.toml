@@ -5,3 +5,4 @@ backgroundColor="#FFFFFF"
 secondaryBackgroundColor="#F5FBF5"
 textColor="#31333F"
 font="sans serif"
+CUSTOM_COLORS = ["#1B3F7D", "#2D66A7", "#498ABA", "#6AB1CF", "#8ECAC4", "#B3DBB8"]
