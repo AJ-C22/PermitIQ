@@ -4,26 +4,23 @@ from datetime import datetime, timedelta
 import joblib
 from dotenv import load_dotenv
 import os
-import google.generativeai as genai
-import random 
+import random
 import time
 from preprocessing import clean_description
 from mockdata import MOCK_PERMIT_DATA
-# --- Page Configuration ---
+from langchain_community.vectorstores import Chroma
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_community.llms import Ollama
+from langchain.chains import RetrievalQA
+
 st.set_page_config(layout="wide", page_title="PermitIQ", page_icon="logo.png")
 
-# --- Load Environment Variables & Configure Gemini ---
 load_dotenv()
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-gemini_configured = False
-if GEMINI_API_KEY:
-    try:
-        genai.configure(api_key=GEMINI_API_KEY)
-        gemini_configured = True
-    except Exception as e:
-        st.sidebar.error(f"⚠️ Failed to configure Gemini: {e}")
-else:
-    st.sidebar.error("⚠️ GEMINI_API_KEY not found in environment variables.")
+
+PDF_FOLDER = "LA County Permitting" 
+PDF_PERSIST_DIRECTORY = "chroma_db_permitting"
+PDF_EMBEDDING_MODEL = "all-MiniLM-L6-v2"
+PDF_OLLAMA_MODEL = "mistral"
 
 # --- Load Classifier Model ---
 MODEL_PATH = "permit_classifier_pipeline.joblib"
@@ -66,23 +63,39 @@ if "reviewer_idx" not in st.session_state:
     st.session_state.reviewer_idx = 0
 if "view" not in st.session_state:
     st.session_state.view = "form"
-if "ai_question" not in st.session_state:
-    st.session_state.ai_question = ""
-if "ai_response" not in st.session_state:
-    st.session_state.ai_response = None
+if "pdf_response" not in st.session_state: 
+    st.session_state.pdf_response = None
 if "dashboard_detail" not in st.session_state:
     st.session_state.dashboard_detail = "Home"
-
-# Add session state for rejection workflow if it doesn't exist
 if 'rejecting_classification_id' not in st.session_state:
     st.session_state.rejecting_classification_id = None
 
-# Define Logo Colors
 LOGO_BLUE = "#17A9CE"
 LOGO_GREEN = "#6BC856"
-
-# Define the color palette
 CUSTOM_COLORS = ["#1B3F7D", "#2D66A7", "#498ABA", "#6AB1CF", "#8ECAC4", "#B3DBB8"]
+
+# --- Function to Load PDF QA Chain ---
+@st.cache_resource 
+def load_pdf_qa_chain():
+    """Loads the vector store and initializes the Ollama QA chain."""
+    if not os.path.exists(PDF_PERSIST_DIRECTORY):
+        st.sidebar.error(f"⚠️ PDF Vector Store not found.")
+        st.sidebar.caption(f"Run build script first. Expected path: '{PDF_PERSIST_DIRECTORY}'")
+        return None
+    try:
+        embeddings = HuggingFaceEmbeddings(model_name=PDF_EMBEDDING_MODEL)
+        vectorstore = Chroma(persist_directory=PDF_PERSIST_DIRECTORY, embedding_function=embeddings)
+        llm = Ollama(model=PDF_OLLAMA_MODEL)
+        qa_chain = RetrievalQA.from_chain_type(
+            llm=llm,
+            retriever=vectorstore.as_retriever(search_kwargs={"k": 2})
+        )
+        return qa_chain
+    except Exception as e:
+        st.sidebar.error(f"⚠️ Failed to load PDF QA Chain")
+        st.sidebar.caption(f"Error: {e}")
+        st.sidebar.caption(f"Check Ollama service & model ('{PDF_OLLAMA_MODEL}').")
+        return None
 
 # --- Helper Functions ---
 def get_next_reviewer():
@@ -162,6 +175,9 @@ selected_view = st.sidebar.radio(
 st.session_state.view = "form" if selected_view == "📝 Submit New Request" else "dashboard"
 st.sidebar.divider()
 
+pdf_qa_chain = load_pdf_qa_chain()
+st.sidebar.divider()
+
 if st.session_state.view == "dashboard":
     dashboard_views = ["Home"] + DEPARTMENTS
     current_detail_index = dashboard_views.index(st.session_state.dashboard_detail) if st.session_state.dashboard_detail in dashboard_views else 0
@@ -176,45 +192,43 @@ if st.session_state.view == "dashboard":
         st.rerun()
     st.sidebar.divider()
 
-if not gemini_configured:
-    st.sidebar.error("AI Features Disabled")
-
 form_submitted_this_run = False
 
 # ========== FORM PAGE ==========
 
 if st.session_state.view == "form":
 
-    st.subheader("✨ Ask Ethica AI about Procedures or Data")
-    query_col, btn_col = st.columns([20, 1])
+    # --- Ollama PDF Query Section ---
+    st.subheader(f"✨ Ask Ethica AI about Procedures & Permits")
+    
 
-    with query_col:
-        ai_question_input = st.text_input("Ask a question...", key="ai_input", placeholder="e.g., What are the requirements for an ADU conversion?", label_visibility="collapsed")
-    with btn_col:
-        ai_submit_button = st.button("➡️", key="ai_submit", use_container_width=True, disabled=not gemini_configured)
+    if pdf_qa_chain: 
+        pdf_query_col, pdf_btn_col = st.columns([20, 1])
+        with pdf_query_col:
+            pdf_question_input = st.text_input("Ask the PDFs...", key="pdf_input", placeholder="e.g., What is the setback for Zone R1?", label_visibility="collapsed")
+        with pdf_btn_col:
+            pdf_submit_button = st.button("➡️", key="pdf_submit", use_container_width=True)
+        st.caption("Ethica AI is available to assist with your permitting application by answering questions about general procedures or, when accessible, specific permit details.")
 
-    if ai_submit_button and ai_question_input:
-        st.session_state.ai_question = ai_question_input
-        st.session_state.ai_response = None
-        prompt = st.session_state.ai_question
+        if pdf_submit_button and pdf_question_input:
+            st.session_state.pdf_response = None 
+            with st.spinner(f"🧠 Querying PDFs with Ollama ({PDF_OLLAMA_MODEL})..."):
+                try:
+                    answer = pdf_qa_chain.run(pdf_question_input)
+                    st.session_state.pdf_response = answer 
+                except Exception as e:
+                     st.error(f"Error querying PDFs: {e}")
+                     st.error("Ensure the Ollama service is running and the model is available.")
+                     st.session_state.pdf_response = None 
+    else:
+        st.warning("PDF Question Answering system could not be loaded. Check sidebar errors and ensure Ollama is running with the correct model.")
 
-        with st.spinner("🧠 Ethica AI is thinking..."):
-            try:
-                gemini_model = genai.GenerativeModel("gemini-2.0-flash-thinking-exp-01-21")
-                response = gemini_model.generate_content(prompt)
-                st.session_state.ai_response = response.text
+    if st.session_state.pdf_response:
+        st.markdown("**Local AI Response:**")
+        with st.expander("View PDF Query Response", expanded=True):
+            st.markdown(st.session_state.pdf_response)
 
-            except Exception as e:
-                st.error(f"🤕 Sorry, couldn't get an answer from the AI: {e}")
-                st.session_state.ai_response = None 
-
-    if st.session_state.ai_response:
-        st.markdown("**EthicaAI Response:**")
-        with st.expander("View AI Response", expanded=True):
-            st.markdown(st.session_state.ai_response) 
-
-    st.caption("Ethica AI can provide answers about general procedures or specific permit data if available.")
-    st.divider() 
+    st.divider()
 
     st.title("📝 Submit a Permit Request")
     st.markdown("Fill in the details below to submit your permit application.")
@@ -323,7 +337,7 @@ if st.session_state.view == "form":
                         predicted_type = user_permit_type; confidence = None; classification_approved = True; classification_status_message = "Classification skipped"
                     # --- End Modified Classification ---
 
-                    st.write("�� Assigning reviewer...")
+                    st.write("👷 Assigning reviewer...")
                     assigned_reviewer = get_next_reviewer()
                     time.sleep(0.5)
 
