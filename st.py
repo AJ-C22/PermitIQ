@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import joblib
 from dotenv import load_dotenv
 import os
@@ -20,7 +20,7 @@ load_dotenv()
 PDF_FOLDER = "LA County Permitting" 
 PDF_PERSIST_DIRECTORY = "chroma_db_permitting"
 PDF_EMBEDDING_MODEL = "all-MiniLM-L6-v2"
-PDF_OLLAMA_MODEL = "mistral"
+PDF_OLLAMA_MODEL = "mistral:7b-q4_K_M"
 
 # --- Load Classifier Model ---
 MODEL_PATH = "permit_classifier_pipeline.joblib"
@@ -53,7 +53,10 @@ PERMIT_TYPES = ['unincorporated building residential',
     'unincorporated mechanical',
     'fire',
     'unincorporated sewer']
-PERMIT_STATUS_OPTIONS = ["Submitted", "In Review", "Needs Info", "Approved", "Rejected", "Withdrawn", "External Review"]
+# Define status groups
+ACTIVE_STATUSES = ["Submitted", "In Review", "Needs Info", "External Review"]
+COMPLETED_STATUSES = ["Approved", "Rejected", "Withdrawn"]
+PERMIT_STATUS_OPTIONS = ACTIVE_STATUSES + COMPLETED_STATUSES # Combined list
 CONFIDENCE_THRESHOLD = 0.93 
 
 # --- Session State Initialization ---
@@ -90,11 +93,13 @@ def load_pdf_qa_chain():
             llm=llm,
             retriever=vectorstore.as_retriever(search_kwargs={"k": 2})
         )
+        st.sidebar.success("✅ PDF QA System Loaded")
+        st.sidebar.caption(f"Model: {PDF_OLLAMA_MODEL}")
         return qa_chain
     except Exception as e:
         st.sidebar.error(f"⚠️ Failed to load PDF QA Chain")
         st.sidebar.caption(f"Error: {e}")
-        st.sidebar.caption(f"Check Ollama service & model ('{PDF_OLLAMA_MODEL}').")
+        st.sidebar.caption(f"Check Ollama service & model ('{PDF_OLLAMA_MODEL}'). Run: ollama pull {PDF_OLLAMA_MODEL}")
         return None
 
 # --- Helper Functions ---
@@ -198,34 +203,33 @@ form_submitted_this_run = False
 
 if st.session_state.view == "form":
 
-    # --- Ollama PDF Query Section ---
+    # --- Restore Ethica AI Branding for Query Section ---
     st.subheader(f"✨ Ask Ethica AI about Procedures & Permits")
-    
+    st.caption("Ethica AI can answer questions based on general knowledge or specific permitting documents.")
 
-    if pdf_qa_chain: 
+    if pdf_qa_chain:
         pdf_query_col, pdf_btn_col = st.columns([20, 1])
         with pdf_query_col:
-            pdf_question_input = st.text_input("Ask the PDFs...", key="pdf_input", placeholder="e.g., What is the setback for Zone R1?", label_visibility="collapsed")
+            pdf_question_input = st.text_input("Ask Ethica AI...", key="pdf_input", placeholder="e.g., What is the setback for Zone R1 in the PDF?", label_visibility="collapsed")
         with pdf_btn_col:
             pdf_submit_button = st.button("➡️", key="pdf_submit", use_container_width=True)
-        st.caption("Ethica AI is available to assist with your permitting application by answering questions about general procedures or, when accessible, specific permit details.")
 
         if pdf_submit_button and pdf_question_input:
-            st.session_state.pdf_response = None 
-            with st.spinner(f"🧠 Querying PDFs with Ollama ({PDF_OLLAMA_MODEL})..."):
+            st.session_state.pdf_response = None
+            with st.spinner(f"🧠 Ethica AI is processing your query..."):
                 try:
                     answer = pdf_qa_chain.run(pdf_question_input)
-                    st.session_state.pdf_response = answer 
+                    st.session_state.pdf_response = answer
                 except Exception as e:
-                     st.error(f"Error querying PDFs: {e}")
-                     st.error("Ensure the Ollama service is running and the model is available.")
-                     st.session_state.pdf_response = None 
+                     st.error(f"Error querying Ethica AI (PDF backend): {e}")
+                     st.error(f"Ensure the backend Ollama service is running and model '{PDF_OLLAMA_MODEL}' is available.")
+                     st.session_state.pdf_response = None
     else:
-        st.warning("PDF Question Answering system could not be loaded. Check sidebar errors and ensure Ollama is running with the correct model.")
+        st.warning("Ethica AI's PDF knowledge base could not be loaded. Check sidebar errors.")
 
     if st.session_state.pdf_response:
-        st.markdown("**Local AI Response:**")
-        with st.expander("View PDF Query Response", expanded=True):
+        st.markdown("**Ethica AI Response:**")
+        with st.expander("View Ethica AI's Response (from PDFs)", expanded=True):
             st.markdown(st.session_state.pdf_response)
 
     st.divider()
@@ -263,136 +267,136 @@ if st.session_state.view == "form":
         submission_date = datetime.today()
 
         submitted = st.form_submit_button("➡️ Submit Permit Request", use_container_width=True, type="primary")
-
+        
         if submitted:
-            if not all([applicant_name, project_name, email, project_location, description]):
-                st.error("⚠️ Please fill in all required fields marked with *.")
-            else:
-                form_submitted_this_run = True
-                with st.status("Processing submission...", expanded=True) as status:
-                    st.write("⏳ Validating input...")
-                    time.sleep(0.5)
+                if not all([applicant_name, project_name, email, project_location, description]):
+                    st.error("⚠️ Please fill in all required fields marked with *.")
+                else:
+                    form_submitted_this_run = True
+                    with st.status("Processing submission...", expanded=True) as status:
+                        st.write("⏳ Validating input...")
+                        time.sleep(0.5)
 
-                    # --- Modified Classification Logic ---
-                    predicted_type = user_permit_type # Start with user's choice ALWAYS
-                    confidence = None
-                    classification_approved = True # Default to approved, as we now prioritize user input on low confidence
-                    classification_status_message = "N/A"
+                        # --- Modified Classification Logic ---
+                        predicted_type = user_permit_type # Start with user's choice ALWAYS
+                        confidence = None
+                        classification_approved = True # Default to approved, as we now prioritize user input on low confidence
+                        classification_status_message = "N/A"
 
-                    if model and description:
-                        try:
-                            st.write("✨ Cleaning description...")
-                            cleaned_input_description = clean_description(description)
+                        if model and description:
+                            try:
+                                st.write("✨ Cleaning description...")
+                                cleaned_input_description = clean_description(description)
 
-                            st.write("🤖 Auto-classifying...")
-                            model_prediction = model.predict([cleaned_input_description])[0]
-                            prediction_proba = None
+                                st.write("🤖 Auto-classifying...")
+                                model_prediction = model.predict([cleaned_input_description])[0]
+                                prediction_proba = None
 
-                            if hasattr(model, "predict_proba"):
-                                prediction_proba = model.predict_proba([cleaned_input_description])
-                                confidence = prediction_proba.max()
+                                if hasattr(model, "predict_proba"):
+                                    prediction_proba = model.predict_proba([cleaned_input_description])
+                                    confidence = prediction_proba.max()
 
-                                # CASE 1: High Confidence & AI agrees with user OR AI differs but meets threshold
-                                if confidence >= CONFIDENCE_THRESHOLD:
-                                    if model_prediction != user_permit_type:
-                                        st.write(f"✅ AI suggested type **{model_prediction}** used (Confidence: {confidence:.2f} >= {CONFIDENCE_THRESHOLD})")
-                                        predicted_type = model_prediction # Use AI prediction
-                                        classification_status_message = "AI prediction used (High Confidence)"
-                                    else:
-                                        
-                                        predicted_type = user_permit_type
-                                        classification_status_message = f"AI confirmed user type (Confidence: {confidence:.2f})"
-                                    classification_approved = True
+                                    # CASE 1: High Confidence & AI agrees with user OR AI differs but meets threshold
+                                    if confidence >= CONFIDENCE_THRESHOLD:
+                                        if model_prediction != user_permit_type:
+                                            st.write(f"✅ AI suggested type **{model_prediction}** used (Confidence: {confidence:.2f} >= {CONFIDENCE_THRESHOLD})")
+                                            predicted_type = model_prediction # Use AI prediction
+                                            classification_status_message = "AI prediction used (High Confidence)"
+                                        else:
+                                            
+                                            predicted_type = user_permit_type
+                                            classification_status_message = f"AI confirmed user type (Confidence: {confidence:.2f})"
+                                        classification_approved = True
 
-                                # CASE 2: Low Confidence (< Threshold)
+                                    # CASE 2: Low Confidence (< Threshold)
+                                    else: 
+                                        predicted_type = user_permit_type # ALWAYS use user type if confidence is low
+                                        classification_approved = False
+                                        if model_prediction != user_permit_type:
+                                            st.write(f"⚠️ AI suggested type **{model_prediction}** ignored (Confidence: {confidence:.2f} < {CONFIDENCE_THRESHOLD}). Using user-selected type.")
+                                            classification_status_message = f"User type kept (AI suggestion '{model_prediction}'. Permit Flagged)"
+                                        else:
+                                            # AI agreed but confidence was low
+                                            classification_status_message = f"User type kept (AI agreed but low confidence: {confidence:.2f})"
+
                                 else: 
-                                    predicted_type = user_permit_type # ALWAYS use user type if confidence is low
-                                    classification_approved = False
+                                    confidence = None 
                                     if model_prediction != user_permit_type:
-                                        st.write(f"⚠️ AI suggested type **{model_prediction}** ignored (Confidence: {confidence:.2f} < {CONFIDENCE_THRESHOLD}). Using user-selected type.")
-                                        classification_status_message = f"User type kept (AI suggestion '{model_prediction}'. Permit Flagged)"
+                                        st.write(f"ℹ️ AI suggested type: **{model_prediction}** (Confidence N/A). Needs manual check.")
+                                        # Even without confidence, if model differs significantly, maybe still flag? Or stick to user? Let's stick to user for now.
+                                        predicted_type = user_permit_type # Stick to user input if confidence unknown
+                                        classification_approved = True # Approved as we use user input
+                                        classification_status_message = "User type kept (AI suggestion ignored, confidence N/A)"
+                                        # Alternative: Set predicted_type = model_prediction, classification_approved = False here if desired
                                     else:
-                                        # AI agreed but confidence was low
-                                        classification_status_message = f"User type kept (AI agreed but low confidence: {confidence:.2f})"
+                                        predicted_type = user_permit_type
+                                        classification_approved = True
+                                        classification_status_message = "User type kept (AI confirmed, confidence N/A)"
 
-                            else: 
-                                confidence = None 
-                                if model_prediction != user_permit_type:
-                                    st.write(f"ℹ️ AI suggested type: **{model_prediction}** (Confidence N/A). Needs manual check.")
-                                    # Even without confidence, if model differs significantly, maybe still flag? Or stick to user? Let's stick to user for now.
-                                    predicted_type = user_permit_type # Stick to user input if confidence unknown
-                                    classification_approved = True # Approved as we use user input
-                                    classification_status_message = "User type kept (AI suggestion ignored, confidence N/A)"
-                                    # Alternative: Set predicted_type = model_prediction, classification_approved = False here if desired
-                                else:
-                                    predicted_type = user_permit_type
-                                    classification_approved = True
-                                    classification_status_message = "User type kept (AI confirmed, confidence N/A)"
+                                time.sleep(0.5)
+                            except Exception as e:
+                                st.warning(f"⚠️ Classification failed: {e}. Using user-selected type.")
+                                predicted_type = user_permit_type; confidence = None; classification_approved = True; classification_status_message = "Classification failed"
+                        else:
+                            predicted_type = user_permit_type; confidence = None; classification_approved = True; classification_status_message = "Classification skipped"
+                        # --- End Modified Classification ---
 
-                            time.sleep(0.5)
-                        except Exception as e:
-                            st.warning(f"⚠️ Classification failed: {e}. Using user-selected type.")
-                            predicted_type = user_permit_type; confidence = None; classification_approved = True; classification_status_message = "Classification failed"
-                    else:
-                        predicted_type = user_permit_type; confidence = None; classification_approved = True; classification_status_message = "Classification skipped"
-                    # --- End Modified Classification ---
+                        st.write("👷 Assigning reviewer...")
+                        assigned_reviewer = get_next_reviewer()
+                        time.sleep(0.5)
 
-                    st.write("👷 Assigning reviewer...")
-                    assigned_reviewer = get_next_reviewer()
-                    time.sleep(0.5)
+                        # Prepare new entry (Classification Approved is now mostly True unless model lacks predict_proba AND differs)
+                        new_entry = {
+                            "ID": f"P{random.randint(10000, 99999)}", "Project Name": project_name, "Applicant": applicant_name,
+                            "Email": email, "Location": project_location, "Department": department_choice,
+                            "Permit Type": predicted_type, # Final type determined above
+                            "Description": description, "Submission Date": submission_date.strftime("%Y-%m-%d"), "Status": "Submitted",
+                            "Assigned To": assigned_reviewer, "Last Update": submission_date.strftime("%Y-%m-%d %H:%M"),
+                            "Needs Review By": DEPARTMENTS_NEEDING_REVIEW.get(predicted_type, []),
+                            "Review History": [f"{submission_date.strftime('%Y-%m-%d %H:%M')}: Submitted, assigned to {assigned_reviewer}."],
+                            "External Review Status": "N/A",
+                            "Classification Confidence": confidence,
+                            "Classification Approved": classification_approved # Reflects if AI override occurred or needs check
+                        }
 
-                    # Prepare new entry (Classification Approved is now mostly True unless model lacks predict_proba AND differs)
-                    new_entry = {
-                        "ID": f"P{random.randint(10000, 99999)}", "Project Name": project_name, "Applicant": applicant_name,
-                        "Email": email, "Location": project_location, "Department": department_choice,
-                        "Permit Type": predicted_type, # Final type determined above
-                        "Description": description, "Submission Date": submission_date.strftime("%Y-%m-%d"), "Status": "Submitted",
-                        "Assigned To": assigned_reviewer, "Last Update": submission_date.strftime("%Y-%m-%d %H:%M"),
-                        "Needs Review By": DEPARTMENTS_NEEDING_REVIEW.get(predicted_type, []),
-                        "Review History": [f"{submission_date.strftime('%Y-%m-%d %H:%M')}: Submitted, assigned to {assigned_reviewer}."],
-                        "External Review Status": "N/A",
-                        "Classification Confidence": confidence,
-                        "Classification Approved": classification_approved # Reflects if AI override occurred or needs check
-                    }
+                        # Store details for display
+                        classification_outcome_msg = classification_status_message
+                        classification_confidence_val = confidence
+                        final_permit_type = predicted_type
+                        # Needs approval flag is now tied directly to the classification_approved variable from the logic above
+                        needs_approval_flag = not classification_approved
+                        assigned_dept = assigned_reviewer
+                        submitted_project_name = project_name
 
-                    # Store details for display
-                    classification_outcome_msg = classification_status_message
-                    classification_confidence_val = confidence
-                    final_permit_type = predicted_type
-                    # Needs approval flag is now tied directly to the classification_approved variable from the logic above
-                    needs_approval_flag = not classification_approved
-                    assigned_dept = assigned_reviewer
-                    submitted_project_name = project_name
+                        st.write("💾 Saving request...")
+                        st.session_state.requests.append(new_entry)
+                        time.sleep(0.5)
 
-                    st.write("💾 Saving request...")
-                    st.session_state.requests.append(new_entry)
-                    time.sleep(0.5)
+                        status.update(label="✅ Submission Complete!", state="complete", expanded=False)
 
-                    status.update(label="✅ Submission Complete!", state="complete", expanded=False)
+        # --- Display Results AFTER the form processing ---
+        if form_submitted_this_run:
+            st.success(f"✅ Permit request '{submitted_project_name}' submitted successfully! Assigned to {assigned_dept}.")
+            st.balloons()
 
-    # --- Display Results AFTER the form processing ---
-    if form_submitted_this_run:
-        st.success(f"✅ Permit request '{submitted_project_name}' submitted successfully! Assigned to {assigned_dept}.")
-        st.balloons()
+            # --- Always Display Classification Outcome ---
+            st.markdown("---")
+            st.subheader("Classification Summary")
+            conf_display = f"{classification_confidence_val:.2f}" if classification_confidence_val is not None else "N/A"
+            st.markdown(f"**Final Permit Type Used:** `{final_permit_type}`")
+            st.markdown(f"**AI Confidence:** {conf_display}")
+            st.markdown(f"**Notes:** {classification_outcome_msg}")
 
-        # --- Always Display Classification Outcome ---
-        st.markdown("---")
-        st.subheader("Classification Summary")
-        conf_display = f"{classification_confidence_val:.2f}" if classification_confidence_val is not None else "N/A"
-        st.markdown(f"**Final Permit Type Used:** `{final_permit_type}`")
-        st.markdown(f"**AI Confidence:** {conf_display}")
-        st.markdown(f"**Notes:** {classification_outcome_msg}")
-
-        # Update the warning/info message based on the final needs_approval_flag
-        if needs_approval_flag:
-            st.warning("⚠️ This classification requires manual review and approval on the dashboard (likely due to missing confidence score).")
-        else:
-            st.info("✅ Classification determined automatically (High confidence AI override or user selection used).")
-        st.markdown("---")
+            # Update the warning/info message based on the final needs_approval_flag
+            if needs_approval_flag:
+                st.warning("⚠️ This classification requires manual review and approval on the dashboard (likely due to missing confidence score).")
+            else:
+                st.info("✅ Classification determined automatically (High confidence AI override or user selection used).")
+            st.markdown("---")
 
 # ========== DASHBOARD PAGE ==========
 elif st.session_state.view == "dashboard":
-    st.title(f"{st.session_state.dashboard_detail}")
+    st.title(f"📊 {st.session_state.dashboard_detail}")
 
     if not st.session_state.requests:
         st.info("📪 No permit requests submitted yet.")
@@ -405,71 +409,107 @@ elif st.session_state.view == "dashboard":
             except Exception: pass # Ignore errors, keep as object
 
             if st.session_state.dashboard_detail == "Home":
-                st.subheader(f"📋 Total Submitted Requests")
+                st.subheader(f"📈 Overall Process KPIs")
+
+                # --- KPI Calculations ---
+                total_requests = len(df_all)
+                active_requests_df = df_all[df_all['Status'].isin(ACTIVE_STATUSES)].copy()
+                completed_requests_df = df_all[df_all['Status'].isin(COMPLETED_STATUSES)].copy()
+
+                # Calculate Avg Completed Cycle Time
+                completed_requests_df = completed_requests_df.dropna(subset=['Submission Date', 'Last Update DT'])
+                avg_cycle_time = (completed_requests_df['Last Update DT'] - completed_requests_df['Submission Date']).mean() if not completed_requests_df.empty else None
+
+                # Calculate Approval Rate
+                approved_count = completed_requests_df[completed_requests_df['Status'] == 'Approved'].shape[0]
+                total_completed = len(completed_requests_df)
+                approval_rate = (approved_count / total_completed * 100) if total_completed > 0 else 0
+
+                # Counts for specific statuses
+                active_reviews = len(active_requests_df)
+                needs_info_count = active_requests_df[active_requests_df['Status'] == 'Needs Info'].shape[0]
+                external_review_count = active_requests_df[active_requests_df['Status'] == 'External Review'].shape[0]
+
+                # --- Display KPIs ---
+                kp_col1, kp_col2, kp_col3 = st.columns(3)
+                kp_col1.metric("Total Requests", total_requests)
+                kp_col1.metric("Active Reviews", active_reviews)
+                kp_col2.metric("Avg. Completed Cycle Time (Days)", f"{avg_cycle_time.days:.1f}" if pd.notna(avg_cycle_time) else "N/A")
+                kp_col2.metric("Approval Rate", f"{approval_rate:.1f}%" if total_completed > 0 else "N/A")
+                kp_col3.metric("Requests Needing Info", needs_info_count)
+                kp_col3.metric("External Reviews Pending", external_review_count)
 
                 st.divider()
 
-                st.subheader("📈 KPIs & Overview")
-                kp1, kp2, kp3, kp4 = st.columns(4)
-                kp1.metric("Total Requests", len(df_all))
+                # --- Bottleneck Chart Calculation ---
+                # Calculate age of active requests
+                active_requests_df = active_requests_df.dropna(subset=['Submission Date'])
+                active_requests_df['Age'] = (datetime.now(timezone.utc) - active_requests_df['Submission Date'])
+                # Group by department and calculate mean age in days
+                avg_age_by_dept = active_requests_df.groupby('Assigned To')['Age'].mean().dt.days.reset_index()
+                avg_age_by_dept.columns = ['Department', 'Average Age (Days)']
+                avg_age_by_dept = avg_age_by_dept.sort_values('Average Age (Days)', ascending=False)
 
-                valid_times = df_all.dropna(subset=['Submission Date', 'Last Update DT'])
-                valid_times = valid_times[pd.to_datetime(valid_times['Submission Date'], errors='coerce').notna()]
-                valid_times = valid_times[pd.to_datetime(valid_times['Last Update DT'], errors='coerce').notna()]
-                valid_times['Submission Date'] = pd.to_datetime(valid_times['Submission Date'])
-                valid_times['Last Update DT'] = pd.to_datetime(valid_times['Last Update DT'])
-                avg_time = (valid_times['Last Update DT'] - valid_times['Submission Date']).mean() if not valid_times.empty else None
-                kp2.metric("Avg. Time (Days)", f"{avg_time.days + avg_time.seconds/86400:.1f}" if pd.notna(avg_time) else "N/A")
-
-                approved_count = df_all[df_all['Status'] == 'Approved'].shape[0]
-                kp3.metric("Approved Permits", approved_count)
-                in_progress = df_all[df_all['Status'].isin(['Submitted', 'In Review', 'Needs Info', 'External Review'])].shape[0]
-                kp4.metric("Active Reviews", in_progress)
-
-                st.divider()
-
-                st.info(f"Displaying {len(df_all)} of {len(df_all)} total requests.")
-                display_cols_home = ["ID", "Project Name", "Applicant", "Permit Type", "Status", "Assigned To", "Submission Date", "Last Update"]
-                df_display_home = df_all.copy()
-                if pd.api.types.is_datetime64_any_dtype(df_display_home['Submission Date']): df_display_home['Submission Date'] = df_display_home['Submission Date'].dt.strftime('%Y-%m-%d')
-                st.dataframe(df_display_home[display_cols_home], use_container_width=True, hide_index=True)
-
-                st.divider()
+                # --- Display Charts ---
                 st.subheader("📊 Overall Reporting Charts")
-                rep1, rep2 = st.columns(2)
-                with rep1:
-                    st.write("**Status Distribution (All)**")
+                chart_col1, chart_col2 = st.columns(2)
+                with chart_col1:
+                    st.write("**Status Distribution (All Requests)**")
                     status_counts = df_all['Status'].value_counts().reset_index()
-                    status_counts.columns = ['Status', 'Count'] # Rename columns for Vega-Lite
+                    status_counts.columns = ['Status', 'Count']
                     status_spec = {
                         "data": {"values": status_counts.to_dict('records')},
                         "mark": "bar",
                         "encoding": {
-                            "x": {"field": "Status", "type": "nominal", "axis": {"labelAngle": -45}},
+                            "x": {"field": "Status", "type": "nominal", "axis": {"labelAngle": -45}, "sort":"-y"},
                             "y": {"field": "Count", "type": "quantitative"},
                             "color": {
                                 "field": "Status",
                                 "type": "nominal",
                                 "scale": {"range": CUSTOM_COLORS},
-                                "legend": None # Hide legend if categories match x-axis
+                                "legend": None
                             },
                             "tooltip": [{"field": "Status"}, {"field": "Count"}]
                         },
-                         "config": { # Optional: Improve spacing
+                         "config": {
                             "view": {"stroke": "transparent"},
                             "axis": {"domainWidth": 1}
                          }
                     }
                     st.vega_lite_chart(status_spec, use_container_width=True)
-                with rep2:
-                    st.write("**Assignments Distribution (All)**")
+
+                    st.write("**Average Age of Active Requests by Department**")
+                    st.caption("(Indicates potential current bottlenecks)")
+                    if not avg_age_by_dept.empty:
+                        bottleneck_spec = {
+                            "data": {"values": avg_age_by_dept.to_dict('records')},
+                            "mark": "bar",
+                            "encoding": {
+                                "x": {"field": "Department", "type": "nominal", "axis": {"labelAngle": -45}, "sort":"-y"},
+                                "y": {"field": "Average Age (Days)", "type": "quantitative"},
+                                "color": {
+                                    "field": "Department",
+                                    "type": "nominal",
+                                    "scale": {"range": CUSTOM_COLORS},
+                                    "legend": None
+                                },
+                                "tooltip": [{"field": "Department"}, {"field": "Average Age (Days)", "format": ".1f"}]
+                            },
+                            "config": {"view": {"stroke": "transparent"}, "axis": {"domainWidth": 1}}
+                        }
+                        st.vega_lite_chart(bottleneck_spec, use_container_width=True)
+                    else:
+                        st.info("No active requests with valid dates to calculate average age.")
+
+                with chart_col2:
+                    st.write("**Assignments Distribution (All Requests)**")
                     assignee_counts = df_all['Assigned To'].value_counts().reset_index()
                     assignee_counts.columns = ['Assignee', 'Count']
                     assignee_spec = {
                         "data": {"values": assignee_counts.to_dict('records')},
                         "mark": "bar",
                         "encoding": {
-                            "x": {"field": "Assignee", "type": "nominal", "axis": {"labelAngle": -45}},
+                            "x": {"field": "Assignee", "type": "nominal", "axis": {"labelAngle": -45}, "sort":"-y"},
                             "y": {"field": "Count", "type": "quantitative"},
                             "color": {
                                 "field": "Assignee",
@@ -485,6 +525,14 @@ elif st.session_state.view == "dashboard":
                          }
                     }
                     st.vega_lite_chart(assignee_spec, use_container_width=True)
+
+                st.divider()
+                st.subheader(f"📋 All Submitted Requests")
+                st.info(f"Displaying {len(df_all)} total requests.")
+                display_cols_home = ["ID", "Project Name", "Applicant", "Permit Type", "Status", "Assigned To", "Submission Date", "Last Update"]
+                df_display_home = df_all.copy()
+                if pd.api.types.is_datetime64_any_dtype(df_display_home['Submission Date']): df_display_home['Submission Date'] = df_display_home['Submission Date'].dt.strftime('%Y-%m-%d')
+                st.dataframe(df_display_home[display_cols_home], use_container_width=True, hide_index=True)
 
             else:
                 selected_dept = st.session_state.dashboard_detail
@@ -606,7 +654,6 @@ elif st.session_state.view == "dashboard":
                                                     st.session_state.requests[selected_idx]['Review History'].append(f"{now_str}: AI classification manually approved.")
                                                     st.session_state.requests[selected_idx]['Last Update'] = now_str
                                                     st.success("AI Classification Approved!")
-                                                    st.rerun()
                                             with reject_col:
                                                 if st.button("❌ Reject Classification", key=f"reject_class_{selected_id}"):
                                                     st.session_state.rejecting_classification_id = selected_id # Set state to start rejection
@@ -631,7 +678,7 @@ elif st.session_state.view == "dashboard":
                                                 st.session_state.requests[selected_idx]['Last Update'] = now_str
                                                 st.session_state.requests[selected_idx]['Review History'].extend(update_log)
                                                 st.success("Request updated!")
-                                                st.rerun() 
+                                                st.rerun()
                                             else:
                                                 st.info("No changes detected.")
 
