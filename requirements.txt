@@ -7,3 +7,4 @@ scikit-learn
 nltk
 langchain
 chromadb
+langchain-community
