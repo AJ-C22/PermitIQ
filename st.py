@@ -20,7 +20,7 @@ load_dotenv()
 PDF_FOLDER = "LA County Permitting" 
 PDF_PERSIST_DIRECTORY = "chroma_db_permitting"
 PDF_EMBEDDING_MODEL = "all-MiniLM-L6-v2"
-PDF_OLLAMA_MODEL = "mistral:7b-q4_K_M"
+PDF_OLLAMA_MODEL = "mistral"
 
 # --- Load Classifier Model ---
 MODEL_PATH = "permit_classifier_pipeline.joblib"
@@ -79,6 +79,7 @@ CUSTOM_COLORS = ["#1B3F7D", "#2D66A7", "#498ABA", "#6AB1CF", "#8ECAC4", "#B3DBB8
 
 # --- Function to Load PDF QA Chain ---
 @st.cache_resource 
+@st.cache_resource 
 def load_pdf_qa_chain():
     """Loads the vector store and initializes the Ollama QA chain."""
     if not os.path.exists(PDF_PERSIST_DIRECTORY):
@@ -93,13 +94,11 @@ def load_pdf_qa_chain():
             llm=llm,
             retriever=vectorstore.as_retriever(search_kwargs={"k": 2})
         )
-        st.sidebar.success("✅ PDF QA System Loaded")
-        st.sidebar.caption(f"Model: {PDF_OLLAMA_MODEL}")
         return qa_chain
     except Exception as e:
         st.sidebar.error(f"⚠️ Failed to load PDF QA Chain")
         st.sidebar.caption(f"Error: {e}")
-        st.sidebar.caption(f"Check Ollama service & model ('{PDF_OLLAMA_MODEL}'). Run: ollama pull {PDF_OLLAMA_MODEL}")
+        st.sidebar.caption(f"Check Ollama service & model ('{PDF_OLLAMA_MODEL}').")
         return None
 
 # --- Helper Functions ---
@@ -202,10 +201,9 @@ form_submitted_this_run = False
 # ========== FORM PAGE ==========
 
 if st.session_state.view == "form":
-
+    
     # --- Ollama PDF Query Section ---
-    st.subheader(f"✨ Ask Local AI ({PDF_OLLAMA_MODEL}) about Permitting PDFs")
-    st.caption(f"Querying documents found in the '{PDF_FOLDER}' directory using the local Ollama model.")
+    st.subheader(f"✨ Ask Ethica AI about Procedures & Permits")
     
 
     if pdf_qa_chain: 
@@ -214,6 +212,7 @@ if st.session_state.view == "form":
             pdf_question_input = st.text_input("Ask the PDFs...", key="pdf_input", placeholder="e.g., What is the setback for Zone R1?", label_visibility="collapsed")
         with pdf_btn_col:
             pdf_submit_button = st.button("➡️", key="pdf_submit", use_container_width=True)
+        st.caption("Ethica AI is available to assist with your permitting application by answering questions about general procedures or, when accessible, specific permit details.")
 
         if pdf_submit_button and pdf_question_input:
             st.session_state.pdf_response = None 
