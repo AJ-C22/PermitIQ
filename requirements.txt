@@ -8,3 +8,5 @@ nltk
 langchain
 chromadb
 langchain-community
+sentence-transformers
+pypdf
