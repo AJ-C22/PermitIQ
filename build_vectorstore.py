@@ -1,11 +1,19 @@
 import os
+import warnings
+import shutil
+import torch
+import sys
+try:
+    __import__('pysqlite3')
+    sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+    print("Successfully patched sqlite3 to use pysqlite3-binary.")
+except ImportError:
+    print("pysqlite3-binary not found, defaulting to system sqlite3.")
+    pass 
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
 from langchain_community.embeddings import HuggingFaceEmbeddings
-import warnings
-import shutil
-import torch # Added for device check
 
 warnings.filterwarnings("ignore")
 
