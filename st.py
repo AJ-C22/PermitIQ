@@ -19,17 +19,18 @@ from preprocessing import clean_description
 from mockdata import MOCK_PERMIT_DATA
 from langchain_community.vectorstores import Chroma
 from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_community.llms import Ollama
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.chains import RetrievalQA
 
 st.set_page_config(layout="wide", page_title="PermitIQ", page_icon="logo.png")
 
 load_dotenv()
 
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 PDF_FOLDER = "LA County Permitting" 
 PDF_PERSIST_DIRECTORY = "chroma_db_permitting"
 PDF_EMBEDDING_MODEL = "all-MiniLM-L6-v2"
-PDF_OLLAMA_MODEL = "mistral"
+PDF_GEMINI_MODEL = "gemini-1.5-flash-latest"
 
 # --- Load Classifier Model ---
 MODEL_PATH = "permit_classifier_pipeline.joblib"
@@ -88,26 +89,51 @@ CUSTOM_COLORS = ["#1B3F7D", "#2D66A7", "#498ABA", "#6AB1CF", "#8ECAC4", "#B3DBB8
 
 # --- Function to Load PDF QA Chain ---
 @st.cache_resource 
-@st.cache_resource 
 def load_pdf_qa_chain():
-    """Loads the vector store and initializes the Ollama QA chain."""
+    """Loads the vector store and initializes the QA chain with Gemini."""
     if not os.path.exists(PDF_PERSIST_DIRECTORY):
-        st.sidebar.error(f"⚠️ PDF Vector Store not found.")
-        st.sidebar.caption(f"Run build script first. Expected path: '{PDF_PERSIST_DIRECTORY}'")
+        st.sidebar.error(f"⚠️ PDF Vector Store ('{PDF_PERSIST_DIRECTORY}') not found.")
+        st.sidebar.caption("Ensure the vector store is in your GitHub repo or run build script locally if testing.")
         return None
     try:
+        # 1. Get Google API Key from Streamlit Secrets
+        google_api_key = os.environ.get("GEMINI_API_KEY")
+        if not google_api_key:
+            st.sidebar.error("⚠️ GEMINI_API_KEY not found in Streamlit Secrets.")
+            return None
+
+        # 2. Load Embeddings (for retrieving from Chroma)
         embeddings = HuggingFaceEmbeddings(model_name=PDF_EMBEDDING_MODEL)
-        vectorstore = Chroma(persist_directory=PDF_PERSIST_DIRECTORY, embedding_function=embeddings)
-        llm = Ollama(model=PDF_OLLAMA_MODEL)
+
+        # 3. Load Vector Store
+        vectorstore = Chroma(
+            persist_directory=PDF_PERSIST_DIRECTORY,
+            embedding_function=embeddings
+        )
+
+        # 4. Initialize the Gemini LLM
+        llm = ChatGoogleGenerativeAI(
+            model=PDF_GEMINI_MODEL,
+            google_api_key=google_api_key,
+            convert_system_message_to_human=True,
+            temperature=0.5
+        )
+
+        # 5. Create the Retriever
+        retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
+
+        # 6. Create the RetrievalQA chain
         qa_chain = RetrievalQA.from_chain_type(
             llm=llm,
-            retriever=vectorstore.as_retriever(search_kwargs={"k": 2})
+            chain_type="stuff",
+            retriever=retriever,
+            return_source_documents=False
         )
+        st.sidebar.success("✅ PDF QA System Loaded (Gemini)")
         return qa_chain
     except Exception as e:
-        st.sidebar.error(f"⚠️ Failed to load PDF QA Chain")
+        st.sidebar.error(f"⚠️ Failed to load PDF QA Chain (Gemini)")
         st.sidebar.caption(f"Error: {e}")
-        st.sidebar.caption(f"Check Ollama service & model ('{PDF_OLLAMA_MODEL}').")
         return None
 
 # --- Helper Functions ---
@@ -211,33 +237,31 @@ form_submitted_this_run = False
 
 if st.session_state.view == "form":
     
-    # --- Ollama PDF Query Section ---
+    # --- PDF Query Section (Now uses Gemini) ---
     st.subheader(f"✨ Ask Ethica AI about Procedures & Permits")
     
-
     if pdf_qa_chain: 
         pdf_query_col, pdf_btn_col = st.columns([20, 1])
         with pdf_query_col:
             pdf_question_input = st.text_input("Ask the PDFs...", key="pdf_input", placeholder="e.g., What is the setback for Zone R1?", label_visibility="collapsed")
         with pdf_btn_col:
             pdf_submit_button = st.button("➡️", key="pdf_submit", use_container_width=True)
-        st.caption("Ethica AI is available to assist with your permitting application by answering questions about general procedures or, when accessible, specific permit details.")
+        st.caption("Ethica AI (powered by Gemini) is available to assist with your permitting application.")
 
         if pdf_submit_button and pdf_question_input:
             st.session_state.pdf_response = None 
-            with st.spinner(f"🧠 Querying PDFs with Ollama ({PDF_OLLAMA_MODEL})..."):
+            with st.spinner(f"🧠 Ethica AI (using Gemini) is processing your query..."):
                 try:
                     answer = pdf_qa_chain.run(pdf_question_input)
                     st.session_state.pdf_response = answer 
                 except Exception as e:
-                     st.error(f"Error querying PDFs: {e}")
-                     st.error("Ensure the Ollama service is running and the model is available.")
+                     st.error(f"Error querying PDFs with Gemini: {e}")
                      st.session_state.pdf_response = None 
     else:
-        st.warning("PDF Question Answering system could not be loaded. Check sidebar errors and ensure Ollama is running with the correct model.")
+        st.warning("Ethica AI's PDF Question Answering system (Gemini) could not be loaded. Check sidebar errors.")
 
     if st.session_state.pdf_response:
-        st.markdown("**Local AI Response:**")
+        st.markdown("**Ethica AI (Gemini) Response:**")
         with st.expander("View PDF Query Response", expanded=True):
             st.markdown(st.session_state.pdf_response)
 

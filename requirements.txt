@@ -10,4 +10,4 @@ chromadb
 langchain-community
 sentence-transformers
 pypdf
-pysqlite3-binary
+langchain-google-genai
