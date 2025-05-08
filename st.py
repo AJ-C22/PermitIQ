@@ -129,10 +129,10 @@ def load_pdf_qa_chain():
             retriever=retriever,
             return_source_documents=False
         )
-        st.sidebar.success("✅ PDF QA System Loaded (Gemini)")
+        st.sidebar.success("✅ Chatbot System Loaded")
         return qa_chain
     except Exception as e:
-        st.sidebar.error(f"⚠️ Failed to load PDF QA Chain (Gemini)")
+        st.sidebar.error(f"⚠️ Failed to load Chatbot System")
         st.sidebar.caption(f"Error: {e}")
         return None
 
@@ -237,8 +237,8 @@ form_submitted_this_run = False
 
 if st.session_state.view == "form":
     
-    # --- PDF Query Section (Now uses Gemini) ---
-    st.subheader(f"✨ Ask Ethica AI about Procedures & Permits")
+    # --- PDF Query Section ---
+    st.subheader(f"Ask Ethica AI about Procedures & Permits")
     
     if pdf_qa_chain: 
         pdf_query_col, pdf_btn_col = st.columns([20, 1])
@@ -246,28 +246,28 @@ if st.session_state.view == "form":
             pdf_question_input = st.text_input("Ask the PDFs...", key="pdf_input", placeholder="e.g., What is the setback for Zone R1?", label_visibility="collapsed")
         with pdf_btn_col:
             pdf_submit_button = st.button("➡️", key="pdf_submit", use_container_width=True)
-        st.caption("Ethica AI (powered by Gemini) is available to assist with your permitting application.")
+        st.caption("Ethica AI is available to assist with your permitting application.")
 
         if pdf_submit_button and pdf_question_input:
             st.session_state.pdf_response = None 
-            with st.spinner(f"🧠 Ethica AI (using Gemini) is processing your query..."):
+            with st.spinner(f"Ethica AI is processing your query..."):
                 try:
                     answer = pdf_qa_chain.run(pdf_question_input)
                     st.session_state.pdf_response = answer 
                 except Exception as e:
-                     st.error(f"Error querying PDFs with Gemini: {e}")
+                     st.error(f"Error querying PDFs: {e}")
                      st.session_state.pdf_response = None 
     else:
-        st.warning("Ethica AI's PDF Question Answering system (Gemini) could not be loaded. Check sidebar errors.")
+        st.warning("Ethica AI's PDF Question Answering system could not be loaded. Check sidebar errors.")
 
     if st.session_state.pdf_response:
-        st.markdown("**Ethica AI (Gemini) Response:**")
+        st.markdown("**Ethica AI Response:**")
         with st.expander("View PDF Query Response", expanded=True):
             st.markdown(st.session_state.pdf_response)
 
     st.divider()
 
-    st.title("📝 Submit a Permit Request")
+    st.title("Submit a Permit Request")
     st.markdown("Fill in the details below to submit your permit application.")
 
     # Initialize variables to store outcomes for display after submission
@@ -374,7 +374,7 @@ if st.session_state.view == "form":
                             predicted_type = user_permit_type; confidence = None; classification_approved = True; classification_status_message = "Classification skipped"
                         # --- End Modified Classification ---
 
-                        st.write("👷 Assigning reviewer...")
+                        st.write("Assigning reviewer...")
                         assigned_reviewer = get_next_reviewer()
                         time.sleep(0.5)
 
@@ -429,10 +429,10 @@ if st.session_state.view == "form":
 
 # ========== DASHBOARD PAGE ==========
 elif st.session_state.view == "dashboard":
-    st.title(f"📊 {st.session_state.dashboard_detail}")
+    st.title(f"{st.session_state.dashboard_detail}")
 
     if not st.session_state.requests:
-        st.info("📪 No permit requests submitted yet.")
+        st.info("No permit requests submitted yet.")
     else:
         try:
             df_all = pd.DataFrame(st.session_state.requests)
@@ -469,7 +469,7 @@ elif st.session_state.view == "dashboard":
             now_utc = datetime.now(timezone.utc) # Use this consistent timezone-aware 'now'
 
             if st.session_state.dashboard_detail == "Home":
-                st.subheader(f"📈 Overall Process KPIs")
+                st.subheader(f"Overall Process KPIs")
 
                 # --- KPI Calculations ---
                 total_requests = len(df_all)
@@ -516,7 +516,7 @@ elif st.session_state.view == "dashboard":
                 avg_age_by_dept = avg_age_by_dept.sort_values('Average Age (Days)', ascending=False)
 
                 # --- Display Charts (No changes needed here) ---
-                st.subheader("📊 Overall Reporting Charts")
+                st.subheader("Overall Reporting Charts")
                 chart_col1, chart_col2 = st.columns(2)
                 with chart_col1:
                     st.write("**Status Distribution (All Requests)**"); status_counts = df_all['Status'].value_counts().reset_index(); status_counts.columns = ['Status', 'Count']; status_spec = {"data": {"values": status_counts.to_dict('records')},"mark": "bar","encoding": {"x": {"field": "Status", "type": "nominal", "axis": {"labelAngle": -45}, "sort":"-y"},"y": {"field": "Count", "type": "quantitative"},"color": {"field": "Status","type": "nominal","scale": {"range": CUSTOM_COLORS},"legend": None},"tooltip": [{"field": "Status"}, {"field": "Count"}]},"config": {"view": {"stroke": "transparent"},"axis": {"domainWidth": 1}}}; st.vega_lite_chart(status_spec, use_container_width=True);
@@ -527,7 +527,7 @@ elif st.session_state.view == "dashboard":
                     st.write("**Assignments Distribution (All Requests)**"); assignee_counts = df_all['Assigned To'].value_counts().reset_index(); assignee_counts.columns = ['Assignee', 'Count']; assignee_spec = {"data": {"values": assignee_counts.to_dict('records')},"mark": "bar","encoding": {"x": {"field": "Assignee", "type": "nominal", "axis": {"labelAngle": -45}, "sort":"-y"},"y": {"field": "Count", "type": "quantitative"},"color": {"field": "Assignee","type": "nominal","scale": {"range": CUSTOM_COLORS},"legend": None},"tooltip": [{"field": "Assignee"}, {"field": "Count"}]},"config": {"view": {"stroke": "transparent"},"axis": {"domainWidth": 1}}}; st.vega_lite_chart(assignee_spec, use_container_width=True);
 
                 st.divider()
-                st.subheader(f"📋 All Submitted Requests"); st.info(f"Displaying {len(df_all)} total requests."); display_cols_home = ["ID", "Project Name", "Applicant", "Permit Type", "Status", "Assigned To", "Submission Date", "Last Update"]; df_display_home = df_all.copy();
+                st.subheader(f"All Submitted Requests"); st.info(f"Displaying {len(df_all)} total requests."); display_cols_home = ["ID", "Project Name", "Applicant", "Permit Type", "Status", "Assigned To", "Submission Date", "Last Update"]; df_display_home = df_all.copy();
                 # Format dates for display AFTER calculations
                 if 'Submission Date' in df_display_home.columns and pd.api.types.is_datetime64_any_dtype(df_display_home['Submission Date']): df_display_home['Submission Date'] = df_display_home['Submission Date'].dt.strftime('%Y-%m-%d');
                 st.dataframe(df_display_home[display_cols_home], use_container_width=True, hide_index=True)
@@ -541,9 +541,9 @@ elif st.session_state.view == "dashboard":
                 df_dept = df_all[df_all['Assigned To'] == selected_dept].copy() # Inherits corrected dates from df_all
 
                 if df_dept.empty:
-                    st.info(f"📪 No requests currently assigned to {selected_dept}.")
+                    st.info(f"No requests currently assigned to {selected_dept}.")
                 else:
-                    st.subheader("🔍 Filter Department Requests")
+                    st.subheader("Filter Department Requests")
                     filter1, filter3 = st.columns(2)
                     with filter1:
                         # Use list comprehension for default active statuses
@@ -563,7 +563,7 @@ elif st.session_state.view == "dashboard":
                         filtered_df_dept = filtered_df_dept[valid_dates_mask & (date_col_dt[valid_dates_mask].dt.date >= date_filter[0]) & (date_col_dt[valid_dates_mask].dt.date <= date_filter[1])]
 
 
-                    st.subheader(f"📋 Submitted Requests for {selected_dept}")
+                    st.subheader(f"Submitted Requests for {selected_dept}")
                     if filtered_df_dept.empty and not df_dept.empty:
                         st.warning("No requests match the current filters for this department.")
                     elif filtered_df_dept.empty:
@@ -579,7 +579,7 @@ elif st.session_state.view == "dashboard":
 
                         # --- Manage Selected Request (rest of department view logic) ---
                         # ... (This section remains largely the same, just ensure dates displayed read from the original string or formatted version) ...
-                        st.subheader("⚙️ Manage Selected Request")
+                        st.subheader("Manage Selected Request")
                         request_ids = filtered_df_dept['ID'].tolist()
                         if request_ids:
                             selected_id = st.selectbox(f"Select Request ID to Manage ({selected_dept})", options=request_ids, key=f"dept_select_{selected_dept}")
@@ -652,7 +652,7 @@ elif st.session_state.view == "dashboard":
                             st.info("No requests to manage in this view.")
 
                     # --- Department Reporting Charts (No changes needed) ---
-                    st.divider(); st.subheader(f"📊 Reporting Charts for {selected_dept}"); rep1, rep2 = st.columns(2);
+                    st.divider(); st.subheader(f"Reporting Charts for {selected_dept}"); rep1, rep2 = st.columns(2);
                     with rep1: st.write(f"**Status Distribution ({selected_dept})**"); status_counts_dept = df_dept['Status'].value_counts().reset_index(); status_counts_dept.columns = ['Status', 'Count']; dept_status_spec = {"data": {"values": status_counts_dept.to_dict('records')},"mark": "bar","encoding": {"x": {"field": "Status", "type": "nominal", "axis": {"labelAngle": -45}},"y": {"field": "Count", "type": "quantitative"},"color": {"field": "Status","type": "nominal","scale": {"range": CUSTOM_COLORS},"legend": None},"tooltip": [{"field": "Status"}, {"field": "Count"}]},"config": {"view": {"stroke": "transparent"},"axis": {"domainWidth": 1}}}; st.vega_lite_chart(dept_status_spec, use_container_width=True)
                     with rep2: st.write(f"**Permit Type Distribution ({selected_dept})**"); type_counts_dept = df_dept['Permit Type'].value_counts().reset_index(); type_counts_dept.columns = ['Permit Type', 'Count']; dept_type_spec = {"data": {"values": type_counts_dept.to_dict('records')},"mark": "bar","encoding": {"x": {"field": "Permit Type", "type": "nominal", "axis": {"labelAngle": -45}},"y": {"field": "Count", "type": "quantitative"},"color": {"field": "Permit Type","type": "nominal","scale": {"range": CUSTOM_COLORS},"legend": None},"tooltip": [{"field": "Permit Type"}, {"field": "Count"}]},"config": {"view": {"stroke": "transparent"},"axis": {"domainWidth": 1}}}; st.vega_lite_chart(dept_type_spec, use_container_width=True)
 
