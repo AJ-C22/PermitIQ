@@ -4,16 +4,12 @@ import shutil
 import torch
 import sys
 try:
-    __import__('pysqlite3')
-    sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
-    print("Successfully patched sqlite3 to use pysqlite3-binary.")
+    import pysqlite3
+    sys.modules['sqlite3'] = pysqlite3
+    sys.modules['dbapi2'] = pysqlite3.dbapi2
+    print("✅ Patched sqlite3 with pysqlite3 (modern SQLite for Chroma)")
 except ImportError:
-    print("pysqlite3-binary not found, defaulting to system sqlite3.")
-    pass 
-from langchain_community.document_loaders import PyPDFLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import Chroma
-from langchain_community.embeddings import HuggingFaceEmbeddings
+    print("❌ pysqlite3 not available. Chroma may not work due to old SQLite version.")
 
 warnings.filterwarnings("ignore")
 

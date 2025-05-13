@@ -1,11 +1,8 @@
 import sys
-try:
-    __import__('pysqlite3')
-    sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
-    print("Successfully patched sqlite3 to use pysqlite3-binary.")
-except ImportError:
-    print("pysqlite3-binary not found, defaulting to system sqlite3.")
-    pass 
+import pysqlite3
+
+sys.modules["sqlite3"] = pysqlite3
+sys.modules["dbapi2"] = pysqlite3.dbapi2
 
 import streamlit as st
 import pandas as pd

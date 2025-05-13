@@ -12,3 +12,5 @@ sentence-transformers
 pypdf
 pysqlite3-binary
 langchain-google-genai
+git+https://github.com/coleifer/pysqlite3.git
+
