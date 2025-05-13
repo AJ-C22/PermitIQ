@@ -4,10 +4,10 @@ import shutil
 import torch
 import sys
 try:
-    import pysqlite3
-    sys.modules['sqlite3'] = pysqlite3
-    sys.modules['dbapi2'] = pysqlite3.dbapi2
-    print("✅ Patched sqlite3 with pysqlite3 (modern SQLite for Chroma)")
+    __import__('pysqlite3')
+    import sys
+
+    sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
 except ImportError:
     print("❌ pysqlite3 not available. Chroma may not work due to old SQLite version.")
 
