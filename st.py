@@ -288,7 +288,7 @@ if st.session_state.view == "form":
         st.subheader("Permit Details")
         col3, col4 = st.columns(2)
         with col3:
-            department_choice = st.selectbox("Primary Department*", ["Building & Safety", "Fire", "Public Works", "Regional Planning"], key="department")
+            department_choice = st.selectbox("Primary Department*", DEPARTMENTS, key="department")
         with col4:
             user_permit_type = st.selectbox("Requested Permit Type*", PERMIT_TYPES, key="user_permit_type")
 
@@ -371,7 +371,7 @@ if st.session_state.view == "form":
                         # --- End Modified Classification ---
 
                         st.write("Assigning reviewer...")
-                        assigned_reviewer = get_next_reviewer()
+                        assigned_reviewer = department_choice
                         time.sleep(0.5)
 
                         # Prepare new entry (Classification Approved is now mostly True unless model lacks predict_proba AND differs)
