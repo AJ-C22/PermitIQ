@@ -406,7 +406,6 @@ if st.session_state.view == "form":
         # --- Display Results AFTER the form processing ---
         if form_submitted_this_run:
             st.success(f"✅ Permit request '{submitted_project_name}' submitted successfully! Assigned to {assigned_dept}.")
-            st.balloons()
 
             # --- Always Display Classification Outcome ---
             st.markdown("---")
