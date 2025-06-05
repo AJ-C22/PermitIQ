@@ -4,13 +4,13 @@
 # sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
 
 import streamlit as st
-import os
-import time
 import pandas as pd
 from datetime import datetime, timedelta, timezone
 import joblib
 from dotenv import load_dotenv
+import os
 import random
+import time
 from preprocessing import clean_description
 from mockdata import MOCK_PERMIT_DATA
 from langchain_community.vectorstores import Chroma
@@ -18,52 +18,7 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.chains import RetrievalQA
 
-# --- Function to load HTML/CSS from files ---
-def load_file_content(file_path):
-    try:
-        base_path = os.path.dirname(__file__)
-        full_path = os.path.join(base_path, file_path)
-        with open(full_path, 'r', encoding='utf-8') as f:
-            return f.read()
-    except FileNotFoundError:
-        try:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                 return f.read()
-        except FileNotFoundError:
-            print(f"[WARN] Static file not found: {file_path}")
-            return ""
-    except Exception as e:
-        print(f"[ERROR] Error loading file {file_path}: {e}")
-        return ""
-
-STATIC_DIR_NAME = "static"
-
-font_awesome_link = '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==" crossorigin="anonymous" referrerpolicy="no-referrer" />'
-google_fonts_link = '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">'
-st.set_page_config(layout="wide", page_title="PermitIQ", page_icon="static/logo.png")
-
-# custom_layout_css_link is removed as CSS is injected directly
-header_html_content = load_file_content(os.path.join(STATIC_DIR_NAME, "header.html"))
-sidebar_html_content = load_file_content(os.path.join(STATIC_DIR_NAME, "sidebar.html"))
-
-# Ensure logo path is correct for Streamlit's static serving
-# sidebar.html should already have src="static/sidebar-ul-logo.svg"
-
-main_wrapper_start_html = f"""
-<div class=\"ulV2Main\" data-theme=\"v2Theme\" style=\"display: flex; flex-flow: row nowrap; height: 100vh; position: fixed; top: 0; left: 0; width: 100%; z-index: 998;\">
-    {sidebar_html_content}
-    {header_html_content}
-    <div class=\"streamlit_content_wrapper\" style=\"margin-left: 120px; padding-top: 64px; width: calc(100% - 120px); height: 100vh; overflow-y: auto; overflow-x: hidden; position: relative; z-index: 1;\">
-"""
-
-# --- Page Config and Initial Injections ---
-
-st.markdown(google_fonts_link, unsafe_allow_html=True)
-st.markdown(font_awesome_link, unsafe_allow_html=True)
-with open(os.path.join(STATIC_DIR_NAME, "custom_layout.css"), 'r') as css_file:
-    custom_css = css_file.read()
-st.markdown(f'<style>{custom_css}</style>', unsafe_allow_html=True)
-st.markdown(main_wrapper_start_html, unsafe_allow_html=True)
+st.set_page_config(layout="wide", page_title="PermitIQ", page_icon="logo.png")
 
 load_dotenv()
 
@@ -245,7 +200,6 @@ with title_col2:
     )
 
 st.sidebar.divider() 
-
 
 selected_view = st.sidebar.radio(
     "Main View",
@@ -703,14 +657,4 @@ elif st.session_state.view == "dashboard":
         except Exception as e:
             st.error(f"An error occurred while rendering the dashboard: {e}")
             st.exception(e)
-
-# --- Injected at the end of the script to close the main HTML wrapper ---
-main_wrapper_end_html = """
-    </div> <!-- streamlit_content_wrapper -->
-</div> <!-- ulV2Main -->
-"""
-
-if '_final_html_injected_once' not in st.session_state:
-    st.markdown(main_wrapper_end_html, unsafe_allow_html=True)
-    st.session_state._final_html_injected_once = True
                         
