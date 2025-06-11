@@ -40,9 +40,8 @@ STATIC_DIR_NAME = "static"
 
 font_awesome_link = '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==" crossorigin="anonymous" referrerpolicy="no-referrer" />'
 google_fonts_link = '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">'
-st.set_page_config(layout="wide", page_title="PermitIQ", page_icon="static/logo.png")
-if 'sidebar_state' not in st.session_state:
-    st.session_state.sidebar_state = 'expanded'
+st.set_page_config(layout="wide", page_title="PermitIQ", page_icon="static/logo.png", initial_sidebar_state="expanded")
+
 # custom_layout_css_link is removed as CSS is injected directly
 header_html_content = load_file_content(os.path.join(STATIC_DIR_NAME, "header.html"))
 sidebar_html_content = load_file_content(os.path.join(STATIC_DIR_NAME, "sidebar.html"))
@@ -64,6 +63,64 @@ st.markdown(font_awesome_link, unsafe_allow_html=True)
 with open(os.path.join(STATIC_DIR_NAME, "custom_layout.css"), 'r') as css_file:
     custom_css = css_file.read()
 st.markdown(f'<style>{custom_css}</style>', unsafe_allow_html=True)
+
+# Disable sidebar collapse/expand functionality
+st.markdown("""
+<style>
+    .streamlit_content_wrapper {
+        margin-top: 64px;
+        z-index: 1;
+    }
+    .stAppHeader {
+        z-index: 1;
+    }
+    /* Hide the sidebar collapse/expand button */
+    [data-testid="stSidebarCollapsedControl"] {
+        display: none !important;
+    }
+    
+    /* Ensure sidebar is always visible and expanded */
+    [data-testid="stSidebar"] {
+        margin-left: 120px;
+        margin-top: 128px;
+        padding-top: 32px;
+        display: block !important;
+        visibility: visible !important;
+        min-width: 21rem !important;
+        max-width: 21rem !important;
+        width: 21rem !important;
+    }
+    
+    /* Hide the sidebar resize handle and any resize functionality */
+    [data-testid="stSidebar"] .css-1d391kg,
+    [data-testid="stSidebar"] .css-1lcbmhc,
+    [data-testid="stSidebar"] .css-1cypcdb,
+    [data-testid="stSidebar"] [data-testid="stSidebarResizeHandle"] {
+        display: none !important;
+    }
+    
+    /* Prevent sidebar from being collapsed */
+    [data-testid="stSidebar"][aria-expanded="false"] {
+        display: block !important;
+        visibility: visible !important;
+        min-width: 21rem !important;
+        max-width: 21rem !important;
+        width: 21rem !important;
+    }
+    
+    /* Remove any pointer events that might trigger collapse */
+    [data-testid="stSidebar"] .css-1d391kg,
+    [data-testid="stSidebar"] .css-1lcbmhc {
+        pointer-events: none !important;
+    }
+    
+    /* Ensure sidebar header is hidden */
+    [data-testid="stSidebarHeader"] {
+        display: none !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 st.markdown(main_wrapper_start_html, unsafe_allow_html=True)
 
 load_dotenv()
@@ -235,16 +292,6 @@ with title_col2:
         .permit-iq-title .green {{
             font-weight: 450;
             color: {LOGO_GREEN};
-        }}
-        .stSidebar {{
-            margin-top: 64px;
-            margin-left: 120px;
-        }}
-        .stSidebarHeader {{
-           display: none;
-        }}
-        [data-testid="stSidebarHeader"] {{
-            display: none;
         }}
     </style>
 

@@ -102,6 +102,10 @@ body,
     --font-size-subtext-line-height: 1rem
 }
 
+.view-icon-link {
+    text-decoration: none !important;
+}
+
 .ulV2Main {
     display: flex;
     flex-flow: row nowrap;
@@ -788,7 +792,11 @@ video {
 
 .tw-border-ul-gray-300 {
     --tw-border-opacity: 1;
-    border-color: hsl(var(--color-ul-gray-300) / var(--tw-border-opacity, 1))
+    border-color: hsl(var(--color-ul-gray-300))
+}
+
+.tw-no-underline {
+    text-decoration: none;
 }
 
 .tw-bg-brand-bg-active {
