@@ -260,6 +260,7 @@ body,
 }
 
 .ul-sidebar {
+    margin-top: 64px;
     position: relative;
     flex-shrink: 0
 }
@@ -898,11 +899,6 @@ video {
 .tw-text-ul-primary-blue {
     --tw-text-opacity: 1;
     color: hsl(var(--color-ul-primary-blue) / var(--tw-text-opacity, 1))
-}
-
-.tw-text-ul-text-black {
-    --tw-text-opacity: 1;
-    color: hsl(var(--color-ul-primary-black) / var(--tw-text-opacity, 1))
 }
 
 .tw-no-underline {

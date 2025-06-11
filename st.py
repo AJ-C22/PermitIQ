@@ -41,7 +41,8 @@ STATIC_DIR_NAME = "static"
 font_awesome_link = '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==" crossorigin="anonymous" referrerpolicy="no-referrer" />'
 google_fonts_link = '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">'
 st.set_page_config(layout="wide", page_title="PermitIQ", page_icon="static/logo.png")
-
+if 'sidebar_state' not in st.session_state:
+    st.session_state.sidebar_state = 'expanded'
 # custom_layout_css_link is removed as CSS is injected directly
 header_html_content = load_file_content(os.path.join(STATIC_DIR_NAME, "header.html"))
 sidebar_html_content = load_file_content(os.path.join(STATIC_DIR_NAME, "sidebar.html"))
@@ -51,8 +52,8 @@ sidebar_html_content = load_file_content(os.path.join(STATIC_DIR_NAME, "sidebar.
 
 main_wrapper_start_html = f"""
 <div class=\"ulV2Main\" data-theme=\"v2Theme\" style=\"display: flex; flex-flow: row nowrap; height: 100vh; position: fixed; top: 0; left: 0; width: 100%; z-index: 998;\">
-    {sidebar_html_content}
     {header_html_content}
+    {sidebar_html_content}
     <div class=\"streamlit_content_wrapper\" style=\"margin-left: 120px; padding-top: 64px; width: calc(100% - 120px); height: 100vh; overflow-y: auto; overflow-x: hidden; position: relative; z-index: 1;\">
 """
 
@@ -234,6 +235,16 @@ with title_col2:
         .permit-iq-title .green {{
             font-weight: 450;
             color: {LOGO_GREEN};
+        }}
+        .stSidebar {{
+            margin-top: 64px;
+            margin-left: 120px;
+        }}
+        .stSidebarHeader {{
+           display: none;
+        }}
+        [data-testid="stSidebarHeader"] {{
+            display: none;
         }}
     </style>
 
