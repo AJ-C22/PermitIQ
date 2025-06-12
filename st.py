@@ -67,12 +67,8 @@ st.markdown(f'<style>{custom_css}</style>', unsafe_allow_html=True)
 # Disable sidebar collapse/expand functionality
 st.markdown("""
 <style>
-    .streamlit_content_wrapper {
-        margin-top: 64px;
-        z-index: 1;
-    }
     .stAppHeader {
-        z-index: 1;
+       border-bottom: 1px solid #E0E0E0;    
     }
     /* Hide the sidebar collapse/expand button */
     [data-testid="stSidebarCollapsedControl"] {
